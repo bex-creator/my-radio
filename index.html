@@ -541,6 +541,7 @@
     let djYtPlayer = null;
     let listenerYtPlayer = null;
     let isYtApiReady = false;
+    let djYtEndTimeout = null; // Prevent ad-endings from skipping tracks
 
     // YouTube API callback
     function onYouTubeIframeAPIReady() {
@@ -721,8 +722,16 @@
                             event.target.playVideo();
                         },
                         'onStateChange': (event) => {
+                            clearTimeout(djYtEndTimeout);
                             if (event.data === YT.PlayerState.ENDED) {
-                                playNextTrack();
+                                // Wait briefly to verify it's the actual end of the video, not an ad finishing
+                                djYtEndTimeout = setTimeout(() => {
+                                    if (djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
+                                        if (djYtPlayer.getPlayerState() === YT.PlayerState.ENDED) {
+                                            playNextTrack();
+                                        }
+                                    }
+                                }, 1500);
                             } else if (event.data === YT.PlayerState.PLAYING) {
                                 onDJPlay();
                             } else if (event.data === YT.PlayerState.PAUSED) {
@@ -1119,8 +1128,13 @@
                              }
                              if(data.time !== undefined && listenerYtPlayer.getCurrentTime) {
                                  const current = listenerYtPlayer.getCurrentTime();
-                                 if(Math.abs(current - data.time) > 2.5) {
-                                     listenerYtPlayer.seekTo(data.time); // Keep synced
+                                 if(Math.abs(current - data.time) > 3) {
+                                     // Prevent restarting if DJ was delayed by an ad but listener is already playing
+                                     if (data.time < 5 && current > data.time) {
+                                         // Let listener stay slightly ahead to avoid jarring restarts
+                                     } else {
+                                         listenerYtPlayer.seekTo(data.time); // Keep synced
+                                     }
                                  }
                              }
                         }
