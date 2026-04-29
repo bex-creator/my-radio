@@ -740,11 +740,13 @@
                                 // Wait briefly to verify it's the actual end of the video, not an ad finishing
                                 djYtEndTimeout = setTimeout(() => {
                                     if (djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
-                                        if (djYtPlayer.getPlayerState() === YT.PlayerState.ENDED) {
+                                        const state = djYtPlayer.getPlayerState();
+                                        // Move to next track if it isn't playing/buffering (e.g. state is ENDED or UNSTARTED)
+                                        if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
                                             playNextTrack();
                                         }
                                     }
-                                }, 1500);
+                                }, 2000);
                             } else if (event.data === YT.PlayerState.PLAYING) {
                                 onDJPlay();
                             } else if (event.data === YT.PlayerState.PAUSED) {
@@ -1136,6 +1138,16 @@
 
                     if (currentData.video_id !== data.videoId) {
                          listenerYtPlayer.loadVideoById(data.videoId, data.time || 0);
+                         
+                         // Force playback if browser stalls the video load/autoplay
+                         setTimeout(() => {
+                             if(listenerYtPlayer && typeof listenerYtPlayer.getPlayerState === 'function') {
+                                 const state = listenerYtPlayer.getPlayerState();
+                                 if(state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED) {
+                                     listenerYtPlayer.playVideo();
+                                 }
+                             }
+                         }, 1500);
                     } else {
                          if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING && data.action === 'play') {
                              listenerYtPlayer.playVideo();
