@@ -497,6 +497,19 @@
     let myMicStream = null;
     let myUsername = "Anonymous";
     let globalHypeCount = 0;
+
+    // High-Speed STUN Servers for faster WebRTC connections
+    const PEER_CONFIG = {
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ]
+        }
+    };
     
     // Audio Nodes
     let audioCtx = null;
@@ -1281,7 +1294,8 @@
             localStream = destinationNode.stream;
             setupVisualizer(localStream, 'dj-visualizer', myStationColor, true);
             
-            peer = new Peer(myStationId);
+            // Use explicit high-speed STUN servers for DJ
+            peer = new Peer(myStationId, PEER_CONFIG);
 
             peer.on('open', (id) => {
                 isBroadcasting = true;
@@ -1436,7 +1450,8 @@
             });
         }
 
-        peer = new Peer();
+        // Use explicit high-speed STUN servers for Listener
+        peer = new Peer(PEER_CONFIG);
 
         peer.on('open', (id) => {
             document.getElementById('listener-status-text').innerText = "Connecting to Host...";
