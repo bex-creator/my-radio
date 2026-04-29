@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P Web Radio Ultimate</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- LiveKit SFU Client & JWT Generator (Replaces PeerJS) -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.8.6/jsrsasign-all-min.js"></script>
     <!-- Add YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -133,6 +135,20 @@
                         <h3 class="font-bold text-lg text-emerald-50 transition">Start Broadcasting</h3>
                         <p class="text-emerald-200/60 text-xs">Mix mic, music, effects, and chat.</p>
                     </div>
+                </div>
+
+                <div class="p-4 bg-slate-900 border border-slate-700 rounded-xl shadow-inner">
+                    <h4 class="text-xs font-bold text-cyan-400 mb-1 uppercase tracking-wider flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" /></svg>
+                        SFU Server (LiveKit)
+                    </h4>
+                    <p class="text-[10px] text-slate-400 mb-3 leading-tight">Option 3: Unlimited Listeners. Get your free API credentials at <a href="https://cloud.livekit.io" target="_blank" class="text-emerald-400 underline hover:text-emerald-300">livekit.io</a>.</p>
+                    <div class="space-y-2">
+                        <input type="text" id="lk-url" placeholder="wss://your-project.livekit.cloud" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
+                        <input type="text" id="lk-key" placeholder="API Key (e.g. devkey)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
+                        <input type="password" id="lk-secret" placeholder="API Secret" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
+                    </div>
+                    <p class="text-[9px] text-red-400/80 mt-2 font-bold uppercase tracking-wider">Demo Mode: Secrets shared publicly to enable auto-join.</p>
                 </div>
             </div>
 
@@ -492,24 +508,11 @@
 
 <script>
     // --- GLOBAL STATE ---
-    let peer = null;
+    let room = null; // Replaced 'peer' with LiveKit 'room'
     let localStream = null;
     let myMicStream = null;
     let myUsername = "Anonymous";
     let globalHypeCount = 0;
-
-    // High-Speed STUN Servers for faster WebRTC connections
-    const PEER_CONFIG = {
-        config: {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
-            ]
-        }
-    };
     
     // Audio Nodes
     let audioCtx = null;
@@ -531,8 +534,6 @@
 
     let isMicMuted = false;
     let isDeafened = false; 
-    let activeConnections = {}; 
-    let listenerDataConn = null; 
     let listenerCount = 0;
     
     let isBroadcasting = false;
@@ -615,7 +616,8 @@
             div.onmouseover = () => div.style.borderColor = stationColor;
             div.onmouseout = () => div.style.borderColor = `rgba(51, 65, 85, 0.5)`;
             
-            div.onclick = () => startListener(data.peerId, data.name, stationColor);
+            // Pass the LiveKit server credentials attached to the broadcast payload
+            div.onclick = () => startListener(data.peerId, data.name, stationColor, data.lkUrl, data.lkKey, data.lkSecret);
             
             div.innerHTML = `
                 <div class="overflow-hidden pr-2 flex items-center gap-3">
@@ -641,13 +643,22 @@
 
     function publishStationState() {
         if (!isBroadcasting || !mqttClient || !myStationId) return;
+        
+        // Grab current credentials to share with listeners
+        const lkUrl = document.getElementById('lk-url').value.trim();
+        const lkKey = document.getElementById('lk-key').value.trim();
+        const lkSecret = document.getElementById('lk-secret').value.trim();
+
         const payload = JSON.stringify({ 
             name: myStationName, 
             host: myUsername,
             peerId: myStationId, 
             color: myStationColor,
             listeners: listenerCount, 
-            timestamp: Date.now() 
+            timestamp: Date.now(),
+            lkUrl: lkUrl,
+            lkKey: lkKey,
+            lkSecret: lkSecret
         });
         mqttClient.publish(MQTT_TOPIC_PREFIX + myStationId, payload, { retain: true });
     }
@@ -1055,11 +1066,13 @@
         if (!text) return;
 
         const payload = { type: 'chat', sender: myUsername, text: text, color: myStationColor };
+        
+        // With an SFU, you don't display your own message manually, you let the server echo it back to you.
+        // But for UI snappiness, we display it immediately.
         displayChatMessage(payload.sender, payload.text, role, payload.color);
         input.value = '';
 
-        if (role === 'dj') broadcastToListeners(payload);
-        else if (role === 'listener' && listenerDataConn && listenerDataConn.open) listenerDataConn.send(payload);
+        broadcastToListeners(payload);
     }
 
     function displayChatMessage(sender, text, role, colorCode = '#10b981') {
@@ -1083,15 +1096,10 @@
     }
 
     function broadcastToListeners(dataObj) {
-        Object.values(activeConnections).forEach(connObj => {
-            try {
-                if (connObj.data && connObj.data.open) {
-                    connObj.data.send(dataObj);
-                }
-            } catch (err) {
-                console.warn("Failed to send to peer", err);
-            }
-        });
+        if (!room || room.state !== 'connected') return;
+        const str = JSON.stringify(dataObj);
+        const encoded = new TextEncoder().encode(str);
+        room.localParticipant.publishData(encoded, { reliable: true });
     }
 
     function handleDataFromPeer(data) {
@@ -1103,10 +1111,11 @@
                 globalHypeCount++;
                 updateHypeUI();
             }
-            if (isBroadcasting) broadcastToListeners(data); 
         } else if (data.type === 'chat') {
-            displayChatMessage(data.sender, data.text, isBroadcasting ? 'dj' : 'listener', data.color);
-            if (isBroadcasting) broadcastToListeners(data); 
+            // Ignore echoes of our own messages
+            if (data.sender !== myUsername) {
+                displayChatMessage(data.sender, data.text, isBroadcasting ? 'dj' : 'listener', data.color);
+            }
         } else if (data.type === 'meta' && !isBroadcasting) {
             document.getElementById('now-playing-container').classList.remove('hidden');
             document.getElementById('now-playing-text').innerText = data.track;
@@ -1189,9 +1198,37 @@
         if(document.getElementById('listener-hype-count')) document.getElementById('listener-hype-count').innerText = globalHypeCount;
     }
 
+    // --- LIVEKIT JWT HELPER ---
+    function generateLiveKitToken(apiKey, apiSecret, roomName, participantName, isHost) {
+        const header = { alg: "HS256", typ: "JWT" };
+        const now = Math.floor(Date.now() / 1000);
+        const payload = {
+            iss: apiKey,
+            nbf: now,
+            exp: now + (12 * 60 * 60), // 12 hours
+            sub: participantName,
+            video: {
+                roomJoin: true,
+                room: roomName,
+                canPublish: isHost,
+                canPublishData: true,
+                canSubscribe: true
+            }
+        };
+        return KJUR.jws.JWS.sign("HS256", JSON.stringify(header), JSON.stringify(payload), {utf8: apiSecret});
+    }
 
     // --- BROADCASTER (DJ) LOGIC ---
     async function startBroadcaster() {
+        const lkUrl = document.getElementById('lk-url').value.trim();
+        const lkKey = document.getElementById('lk-key').value.trim();
+        const lkSecret = document.getElementById('lk-secret').value.trim();
+
+        if (!lkUrl || !lkKey || !lkSecret) {
+            alert("SFU Architecture requires a LiveKit Server URL, API Key, and Secret.");
+            return;
+        }
+
         const nameInput = document.getElementById('station-name-input').value.trim();
         const userInp = document.getElementById('dj-username-input').value.trim();
         myStationColor = document.getElementById('station-color-input').value;
@@ -1300,61 +1337,39 @@
             localStream = destinationNode.stream;
             setupVisualizer(localStream, 'dj-visualizer', myStationColor, true);
             
-            // Use explicit high-speed STUN servers for DJ
-            peer = new Peer(myStationId, PEER_CONFIG);
-
-            peer.on('open', (id) => {
-                isBroadcasting = true;
-                document.getElementById('station-id-display').innerText = id;
-                publishStationState();
-                setInterval(publishStationState, 30000);
+            // Connect to LiveKit SFU Server
+            document.getElementById('station-id-display').innerText = 'CONNECTING...';
+            
+            const token = generateLiveKitToken(lkKey, lkSecret, myStationId, myUsername, true);
+            
+            room = new LiveKit.Room({
+                adaptiveStream: false,
+                dynacast: false,
             });
 
-            peer.on('connection', (conn) => {
-                conn.on('data', handleDataFromPeer);
+            // Listen for changes in listener count from the SFU
+            room.on('participantConnected', () => { listenerCount = room.participants.size; updateListenerCount(); });
+            room.on('participantDisconnected', () => { listenerCount = room.participants.size; updateListenerCount(); });
 
-                conn.on('open', () => {
-                    const callOptions = {
-                        sdpTransform: function(sdp) {
-                            const opusRegex = /a=rtpmap:(\d+)\s+opus\/48000\/2/i;
-                            const match = sdp.match(opusRegex);
-                            if (match) {
-                                const pt = match[1];
-                                const fmtpRegex = new RegExp(`a=fmtp:${pt}.*`, 'i');
-                                const fmtpMatch = sdp.match(fmtpRegex);
-                                if (fmtpMatch) sdp = sdp.replace(fmtpRegex, `${fmtpMatch[0]}; stereo=1; sprop-stereo=1; maxaveragebitrate=320000; cbr=1`);
-                            }
-                            return sdp;
-                        }
-                    };
+            // Handle incoming Data/Chat from listeners
+            room.on('dataReceived', (payload) => {
+                const data = JSON.parse(new TextDecoder().decode(payload));
+                handleDataFromPeer(data);
+            });
 
-                    const call = peer.call(conn.peer, localStream, callOptions);
-                    activeConnections[conn.peer] = { data: conn, call: call };
-                    updateListenerCount();
-                    
-                    // Determine what is currently playing to send to the new listener
-                    let trackName = "Live Mix";
-                    if (playlist.length > 0 && currentTrackIndex >= 0) {
-                        trackName = playlist[currentTrackIndex].name;
-                    }
+            await room.connect(lkUrl, token);
+            
+            isBroadcasting = true;
+            document.getElementById('station-id-display').innerText = myStationId;
+            publishStationState();
+            setInterval(publishStationState, 30000);
 
-                    conn.send({ type: 'meta', track: trackName, color: myStationColor, hype: globalHypeCount });
-
-                    // Send current YouTube state to the newly connected listener immediately
-                    if (djYtPlayer && typeof djYtPlayer.getPlayerState === 'function' && djYtPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-                        try {
-                            const vidObj = djYtPlayer.getVideoData();
-                            if (vidObj && vidObj.video_id) {
-                                conn.send({ type: 'yt_cmd', action: 'play', videoId: vidObj.video_id, time: djYtPlayer.getCurrentTime() });
-                            }
-                        } catch(e) {}
-                    }
-                });
-                
-                conn.on('close', () => {
-                    delete activeConnections[conn.peer];
-                    updateListenerCount();
-                });
+            // Publish Master Audio Track to the Server (Only uploads ONCE, regardless of listener count!)
+            const localAudioTrack = localStream.getAudioTracks()[0];
+            await room.localParticipant.publishTrack(localAudioTrack, {
+                name: 'master-audio',
+                source: LiveKit.Track.Source.Microphone,
+                simulcast: false,
             });
 
             // Periodically sync YouTube time with all listeners to ensure nobody drifts
@@ -1420,12 +1435,12 @@
 
     function endBroadcast() {
         if(isRecording) toggleRecording(); 
+        if (room) room.disconnect();
         removeStationState();
         setTimeout(() => location.reload(), 300); 
     }
 
     function updateListenerCount() {
-        listenerCount = Object.keys(activeConnections).length;
         document.getElementById('listener-count').innerText = listenerCount;
         publishStationState();
     }
@@ -1433,10 +1448,15 @@
     // --- LISTENER LOGIC ---
     function startListenerManual() {
         let stationId = document.getElementById('join-id-input').value.trim().toUpperCase();
-        if (stationId) startListener(stationId, "Private Station", "#06b6d4");
+        const lkUrl = document.getElementById('lk-url').value.trim();
+        const lkKey = document.getElementById('lk-key').value.trim();
+        const lkSecret = document.getElementById('lk-secret').value.trim();
+        if (stationId && lkUrl) startListener(stationId, "Private Station", "#06b6d4", lkUrl, lkKey, lkSecret);
     }
 
-    function startListener(stationId, stationName, themeColor = "#06b6d4") {
+    async function startListener(stationId, stationName, themeColor, lkUrl, lkKey, lkSecret) {
+        if (!lkUrl) { alert("This station is missing LiveKit configuration."); return; }
+        
         const userInp = document.getElementById('dj-username-input').value.trim();
         myUsername = userInp || "Listener_" + Math.floor(Math.random() * 1000);
         myStationColor = themeColor; 
@@ -1447,66 +1467,80 @@
         document.getElementById('listener-station-display').innerText = stationName;
         applyThemeColorToListener(themeColor);
 
-        // Pre-initialize YouTube Player during the user click event to bypass strict browser autoplay blocks
-        if (isYtApiReady && (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function')) {
-            listenerYtPlayer = new YT.Player('yt-player-listener', {
-                height: '10', width: '10',
-                playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
-                events: { 
-                    'onReady': (e) => { 
-                        e.target.mute(); 
-                        
-                        // Process any playback commands that arrived via WebRTC while initializing
-                        if (window.queuedYtCmd) {
-                            e.target.unMute();
-                            e.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
-                            e.target.loadVideoById(window.queuedYtCmd.videoId, window.queuedYtCmd.time || 0);
-                            window.queuedYtCmd = null;
+        // FIX 2: Bulletproof YouTube Initialization (Waits recursively if Google scripts are slow)
+        function initRobustYTPlayer() {
+            if (!isYtApiReady) {
+                setTimeout(initRobustYTPlayer, 500); // Try again in half a second
+                return;
+            }
+            if (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
+                try {
+                    listenerYtPlayer = new YT.Player('yt-player-listener', {
+                        height: '10', width: '10',
+                        playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
+                        events: { 
+                            'onReady': (e) => { 
+                                e.target.mute(); 
+                                if (window.queuedYtCmd) {
+                                    e.target.unMute();
+                                    e.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
+                                    e.target.loadVideoById(window.queuedYtCmd.videoId, window.queuedYtCmd.time || 0);
+                                    window.queuedYtCmd = null;
+                                }
+                            },
+                            'onError': (e) => console.warn("Recoverable YT Error", e)
                         }
-                    } 
-                }
-            });
+                    });
+                } catch(err) { console.error("YT Boot Failed", err); }
+            }
         }
+        initRobustYTPlayer();
 
-        // Use explicit high-speed STUN servers for Listener
-        peer = new Peer(PEER_CONFIG);
+        document.getElementById('listener-status-text').innerText = "Connecting to SFU Server...";
 
-        peer.on('open', (id) => {
-            document.getElementById('listener-status-text').innerText = "Connecting to Host...";
-            listenerDataConn = peer.connect(stationId);
-            
-            listenerDataConn.on('open', () => {
-                document.getElementById('listener-status-text').innerText = "Buffering Audio Stream...";
-                listenerDataConn.send({ type: 'chat', sender: 'System', text: `${myUsername} tuned in.`});
-            });
-            listenerDataConn.on('data', handleDataFromPeer);
-            listenerDataConn.on('close', () => {
-                setListenerStateOff();
-                document.getElementById('listener-status-text').innerText = "Broadcast Ended.";
-            });
+        const token = generateLiveKitToken(lkKey, lkSecret, stationId, myUsername, false);
+        room = new LiveKit.Room();
+
+        room.on('disconnected', () => {
+            setListenerStateOff();
+            document.getElementById('listener-status-text').innerText = "Broadcast Ended or Disconnected.";
         });
 
-        peer.on('call', (call) => {
-            call.answer(); 
-            call.on('stream', (remoteStream) => {
+        // When the DJ's audio track arrives from the server
+        room.on('trackSubscribed', (track) => {
+            if (track.kind === 'audio') {
                 const audioPlayer = document.getElementById('audio-player');
-                audioPlayer.srcObject = remoteStream;
+                track.attach(audioPlayer);
                 
                 audioPlayer.play().then(() => {
                     setListenerStateLive();
-                    setupVisualizer(remoteStream, 'listener-visualizer', myStationColor, false); 
+                    // Convert the LiveKit track back to a MediaStream for the visualizer
+                    const stream = new MediaStream([track.mediaStreamTrack]);
+                    setupVisualizer(stream, 'listener-visualizer', myStationColor, false); 
                 }).catch(e => {
                     document.getElementById('listener-status-text').innerText = "Tap icon to start audio";
-                    // Fallback button now ensures YouTube is triggered if the browser blocked autoplay
                     document.getElementById('listener-status-icon').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 cursor-pointer hover:scale-110 transition" style="color: ${myStationColor}" viewBox="0 0 20 20" fill="currentColor" onclick="document.getElementById('audio-player').play(); if(listenerYtPlayer && typeof listenerYtPlayer.unMute === 'function'){listenerYtPlayer.unMute(); listenerYtPlayer.playVideo();} setListenerStateLive();"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
                 });
-            });
+            }
         });
 
-        peer.on('error', (err) => {
-            setListenerStateOff();
-            document.getElementById('listener-status-text').innerText = "Signal Lost.";
+        // Handle incoming sync/chat data from the server
+        room.on('dataReceived', (payload) => {
+            const data = JSON.parse(new TextDecoder().decode(payload));
+            handleDataFromPeer(data);
         });
+
+        try {
+            await room.connect(lkUrl, token);
+            document.getElementById('listener-status-text').innerText = "Buffering Audio Stream...";
+            
+            // Announce presence
+            const announce = JSON.stringify({ type: 'chat', sender: 'System', text: `${myUsername} tuned in.`});
+            room.localParticipant.publishData(new TextEncoder().encode(announce), { reliable: true });
+        } catch (e) {
+            setListenerStateOff();
+            document.getElementById('listener-status-text').innerText = "Failed to connect to SFU.";
+        }
     }
 
     function applyThemeColorToListener(hexColor) {
@@ -1588,8 +1622,9 @@
             updateHypeUI();
         }
 
-        if (listenerDataConn && listenerDataConn.open) {
-            listenerDataConn.send({ type: 'reaction', emoji: emoji });
+        if (room && room.state === 'connected') {
+            const payload = JSON.stringify({ type: 'reaction', emoji: emoji });
+            room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
         }
     }
 
@@ -1648,6 +1683,12 @@
     function setupVisualizer(stream, canvasId, defaultColorHex, isMirrored) {
         window.currentVisualizerColor = defaultColorHex;
         const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // FIX 3: Force the audio pipeline to wake up if the browser tries to suspend it
+        if (ctxAudio.state === 'suspended') {
+            ctxAudio.resume();
+        }
+
         const analyzer = ctxAudio.createAnalyser();
         const source = ctxAudio.createMediaStreamSource(stream);
         source.connect(analyzer);
