@@ -229,6 +229,23 @@
                         </div>
                     </div>
 
+                    <!-- Moved Controls & Playlist UP for better visibility -->
+                    <div class="flex justify-between items-center mb-3 z-10">
+                        <div class="flex gap-2">
+                            <button onclick="toggleLoop()" id="btn-loop" class="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition">🔁 Loop</button>
+                            <button onclick="shufflePlaylist()" id="btn-shuffle" class="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition">🔀 Shuffle</button>
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded border border-slate-800">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">Tempo</span>
+                            <input type="range" id="tempo-slider" class="w-20 text-emerald-500" min="0.5" max="1.5" step="0.05" value="1" oninput="updateTempo()">
+                            <span id="tempo-label" class="text-[10px] text-slate-300 w-6 text-right">1.0x</span>
+                        </div>
+                    </div>
+
+                    <div id="playlist-container" class="hidden flex-col h-[120px] bg-slate-900/80 rounded-xl border border-slate-800 p-2 mb-4 z-10 shrink-0 shadow-inner">
+                        <div id="playlist-list" class="flex-1 overflow-y-auto custom-scrollbar text-sm space-y-1 pr-2"></div>
+                    </div>
+
                     <!-- YouTube Search Integration -->
                     <div class="flex gap-2 mb-3 z-10">
                         <input type="text" id="yt-search-input" placeholder="Search YouTube (e.g. Lofi Girl)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-red-500 transition" onkeypress="if(event.key === 'Enter') searchYouTube()">
@@ -243,22 +260,6 @@
                     <!-- DJ YouTube Player Container -->
                     <div id="yt-player-container-dj" class="hidden z-10 w-full mb-3 rounded-lg overflow-hidden border border-slate-800 bg-black h-[180px]">
                         <div id="yt-player-dj" class="w-full h-full"></div>
-                    </div>
-
-                    <div class="flex justify-between items-center mb-2 z-10">
-                        <div class="flex gap-2">
-                            <button onclick="toggleLoop()" id="btn-loop" class="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition">🔁 Loop</button>
-                            <button onclick="shufflePlaylist()" id="btn-shuffle" class="text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition">🔀 Shuffle</button>
-                        </div>
-                        <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded border border-slate-800">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">Tempo</span>
-                            <input type="range" id="tempo-slider" class="w-20 text-emerald-500" min="0.5" max="1.5" step="0.05" value="1" oninput="updateTempo()">
-                            <span id="tempo-label" class="text-[10px] text-slate-300 w-6 text-right">1.0x</span>
-                        </div>
-                    </div>
-
-                    <div id="playlist-container" class="hidden flex-col h-[100px] bg-slate-900/80 rounded-xl border border-slate-800 p-2 mb-4 z-10 shrink-0">
-                        <div id="playlist-list" class="flex-1 overflow-y-auto custom-scrollbar text-sm space-y-1 pr-2"></div>
                     </div>
 
                     <audio id="dj-audio-player" controls class="w-full h-10 mt-auto z-10 outline-none rounded-lg" onplay="onDJPlay()" onpause="document.getElementById('vinyl-icon').classList.add('vinyl-paused')"></audio>
@@ -674,36 +675,104 @@
         e.target.value = '';
     }
 
+    function queueYouTubeVideo(videoId, title, playNow, event) {
+        if(event) event.stopPropagation();
+        const item = { type: 'youtube', id: videoId, name: title };
+        const wasEmpty = playlist.length === 0;
+        playlist.push(item);
+        renderPlaylist();
+        if (wasEmpty || playNow) {
+            playTrack(playlist.length - 1);
+        }
+    }
+
     function playTrack(index) {
         if (index < 0 || index >= playlist.length) return;
         currentTrackIndex = index;
-        const file = playlist[index];
+        const item = playlist[index];
         const djPlayer = document.getElementById('dj-audio-player');
-        
-        djPlayer.src = URL.createObjectURL(file);
-        djPlayer.play();
-
-        // Pause YouTube if it's currently playing
-        if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') {
-            djYtPlayer.pauseVideo();
-        }
         
         document.getElementById('playlist-container').classList.remove('hidden');
         document.getElementById('playlist-container').classList.add('flex');
+
+        if (item instanceof File) {
+            // Pause YouTube
+            if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') djYtPlayer.pauseVideo();
+            document.getElementById('yt-player-container-dj').classList.add('hidden');
+            djPlayer.classList.remove('hidden');
+
+            djPlayer.src = URL.createObjectURL(item);
+            djPlayer.play();
+            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
+        } else if (item.type === 'youtube') {
+            // Pause Local File
+            djPlayer.pause();
+            djPlayer.classList.add('hidden');
+            document.getElementById('yt-player-container-dj').classList.remove('hidden');
+
+            if (!djYtPlayer) {
+                djYtPlayer = new YT.Player('yt-player-dj', {
+                    height: '100%', width: '100%', videoId: item.id,
+                    playerVars: { 'autoplay': 1, 'controls': 1 },
+                    events: {
+                        'onReady': (event) => {
+                            event.target.setVolume(document.getElementById('music-vol').value * 100);
+                            event.target.playVideo();
+                        },
+                        'onStateChange': (event) => {
+                            if (event.data === YT.PlayerState.ENDED) {
+                                playNextTrack();
+                            } else if (event.data === YT.PlayerState.PLAYING) {
+                                onDJPlay();
+                            } else if (event.data === YT.PlayerState.PAUSED) {
+                                document.getElementById('vinyl-icon').classList.add('vinyl-paused');
+                                broadcastToListeners({ type: 'yt_cmd', action: 'pause' });
+                            }
+                        }
+                    }
+                });
+            } else {
+                djYtPlayer.loadVideoById(item.id);
+            }
+            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
+            broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: item.id, time: 0 });
+        }
+        
         renderPlaylist();
-        broadcastToListeners({ type: 'meta', track: file.name, color: myStationColor, hype: globalHypeCount });
+    }
+
+    function playNextTrack() {
+        if (playlist.length === 0) return;
+        let nextIndex = currentTrackIndex + 1;
+        if (nextIndex >= playlist.length) {
+            if (isLooping) {
+                nextIndex = 0;
+            } else {
+                return; // End of playlist
+            }
+        }
+        playTrack(nextIndex);
     }
 
     function onDJPlay() {
         document.getElementById('vinyl-icon').classList.remove('vinyl-paused');
         if (playlist.length > 0) {
-            broadcastToListeners({ type: 'meta', track: playlist[currentTrackIndex].name, color: myStationColor, hype: globalHypeCount });
+            const item = playlist[currentTrackIndex];
+            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
+            
+            if (item.type === 'youtube' && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
+                try {
+                    const vidObj = djYtPlayer.getVideoData();
+                    if (vidObj && vidObj.video_id) {
+                        broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: vidObj.video_id, time: djYtPlayer.getCurrentTime() });
+                    }
+                } catch(e) {}
+            }
         }
     }
 
     function toggleLoop() {
         isLooping = !isLooping;
-        document.getElementById('dj-audio-player').loop = isLooping;
         const btn = document.getElementById('btn-loop');
         btn.classList.toggle('bg-emerald-900/50', isLooping);
         btn.classList.toggle('text-emerald-400', isLooping);
@@ -730,11 +799,13 @@
     function renderPlaylist() {
         const list = document.getElementById('playlist-list');
         list.innerHTML = '';
-        playlist.forEach((file, i) => {
+        playlist.forEach((item, i) => {
             const el = document.createElement('div');
             const isActive = i === currentTrackIndex;
+            const isYT = item.type === 'youtube';
+            const icon = isYT ? '📺' : '🎵';
             el.className = `truncate cursor-pointer transition px-3 py-1.5 rounded-lg text-xs font-medium ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 border border-transparent'}`;
-            el.innerHTML = isActive ? `<span class="animate-pulse mr-1">▶</span> ${file.name}` : `<span class="opacity-50">${i + 1}.</span> ${file.name}`;
+            el.innerHTML = isActive ? `<span class="animate-pulse mr-1">▶</span> ${icon} ${escapeHTML(item.name)}` : `<span class="opacity-50">${i + 1}.</span> ${icon} ${escapeHTML(item.name)}`;
             el.onclick = () => playTrack(i);
             list.appendChild(el);
         });
@@ -759,9 +830,9 @@
                     const safeTitle = escapeHTML(item.snippet.title).replace(/'/g, "\\'");
                     div.className = 'flex items-center gap-2 p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded transition text-xs border border-transparent hover:border-slate-600';
                     
-                    // Fixed onclick to pass 'this' instead of 'event'
+                    // Moved the "Add to Mix" button to the LEFT side of the thumbnail/title
                     div.innerHTML = `
-                        <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, this)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
+                        <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
                         <img src="${item.snippet.thumbnails.default.url}" class="w-10 h-7 object-cover rounded cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">
                         <span class="truncate text-slate-200 flex-1 font-medium cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">${escapeHTML(item.snippet.title)}</span>
                     `;
