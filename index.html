@@ -1069,7 +1069,13 @@
 
     function broadcastToListeners(dataObj) {
         Object.values(activeConnections).forEach(connObj => {
-            if (connObj.data && connObj.data.open) connObj.data.send(dataObj);
+            try {
+                if (connObj.data && connObj.data.open) {
+                    connObj.data.send(dataObj);
+                }
+            } catch (err) {
+                console.warn("Failed to send to peer", err);
+            }
         });
     }
 
@@ -1099,7 +1105,7 @@
         } else if (data.type === 'yt_cmd' && !isBroadcasting) {
             // LISTENER SIDE: Execute YouTube sync commands from the DJ
             if (data.action === 'play' || data.action === 'sync') {
-                if(!listenerYtPlayer) {
+                if(!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
                     listenerYtPlayer = new YT.Player('yt-player-listener', {
                         height: '200', width: '200', videoId: data.videoId,
                         playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
@@ -1127,7 +1133,7 @@
                                  listenerYtPlayer.playVideo();
                              }
                              
-                             if(data.time !== undefined && listenerYtPlayer.getCurrentTime) {
+                             if(data.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
                                  const current = listenerYtPlayer.getCurrentTime();
                                  const diff = current - data.time;
                                  
@@ -1135,24 +1141,21 @@
                                  if(Math.abs(diff) > 4) {
                                      if (data.action === 'sync') {
                                          // For routine syncs: ONLY force a skip forward if listener is lagging behind.
-                                         // NEVER rewind listener backward during routine syncs (safeguard against DJ pausing or watching an ad)
                                          if (diff < -5) {
                                              listenerYtPlayer.seekTo(data.time);
                                          }
                                      } else if (data.action === 'play') {
-                                         // For explicit DJ actions (playing or scrubbing):
                                          // Protection against the "ad finishes -> song resets to 0:00" symptom.
-                                         // If DJ's ad finishes, it sends play starting near 0, but if listener is already > 10s in, ignore the reset.
-                                         if (data.time < 2 && current > 10) {
-                                             // Ignore - DJ just finished a pre-roll ad and the real video started
-                                         } else {
+                                         if (!(data.time < 2 && current > 10)) {
                                              listenerYtPlayer.seekTo(data.time);
                                          }
                                      }
                                  }
                              }
                         }
-                    } catch(e) {}
+                    } catch(e) {
+                        console.warn("YT Sync Error", e);
+                    }
                 }
             } else if (data.action === 'pause') {
                 if(listenerYtPlayer && typeof listenerYtPlayer.pauseVideo === 'function') {
@@ -1423,6 +1426,15 @@
         switchView('listener-view');
         document.getElementById('listener-station-display').innerText = stationName;
         applyThemeColorToListener(themeColor);
+
+        // Pre-initialize YouTube Player during the user click event to bypass strict browser autoplay blocks
+        if (isYtApiReady && (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function')) {
+            listenerYtPlayer = new YT.Player('yt-player-listener', {
+                height: '10', width: '10',
+                playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
+                events: { 'onReady': (e) => { e.target.mute(); } }
+            });
+        }
 
         peer = new Peer();
 
