@@ -257,10 +257,8 @@
                     
                     <div id="yt-results-container" class="hidden flex-col gap-1 mb-3 z-10 max-h-40 overflow-y-auto custom-scrollbar bg-slate-900 rounded-lg p-1 border border-slate-700 shadow-xl"></div>
 
-                    <!-- DJ YouTube Player Container -->
-                    <div id="yt-player-container-dj" class="hidden z-10 w-full mb-3 rounded-lg overflow-hidden border border-slate-800 bg-black h-[180px]">
-                        <div id="yt-player-dj" class="w-full h-full"></div>
-                    </div>
+                    <!-- Hidden DJ YouTube Player (Audio Only) -->
+                    <div id="yt-player-dj" style="position: absolute; width: 1px; height: 1px; left: -9999px;"></div>
 
                     <audio id="dj-audio-player" controls class="w-full h-10 mt-auto z-10 outline-none rounded-lg" onplay="onDJPlay()" onpause="document.getElementById('vinyl-icon').classList.add('vinyl-paused')"></audio>
                 </div>
@@ -698,7 +696,6 @@
         if (item instanceof File) {
             // Pause YouTube
             if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') djYtPlayer.pauseVideo();
-            document.getElementById('yt-player-container-dj').classList.add('hidden');
             djPlayer.classList.remove('hidden');
 
             djPlayer.src = URL.createObjectURL(item);
@@ -708,12 +705,11 @@
             // Pause Local File
             djPlayer.pause();
             djPlayer.classList.add('hidden');
-            document.getElementById('yt-player-container-dj').classList.remove('hidden');
 
             if (!djYtPlayer) {
                 djYtPlayer = new YT.Player('yt-player-dj', {
-                    height: '100%', width: '100%', videoId: item.id,
-                    playerVars: { 'autoplay': 1, 'controls': 1 },
+                    height: '1', width: '1', videoId: item.id,
+                    playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
                     events: {
                         'onReady': (event) => {
                             event.target.setVolume(document.getElementById('music-vol').value * 100);
