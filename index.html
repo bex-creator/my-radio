@@ -758,10 +758,12 @@
                     const div = document.createElement('div');
                     const safeTitle = escapeHTML(item.snippet.title).replace(/'/g, "\\'");
                     div.className = 'flex items-center gap-2 p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded transition text-xs border border-transparent hover:border-slate-600';
+                    
+                    // Moved the "Add to Mix" button to the LEFT side of the thumbnail/title
                     div.innerHTML = `
+                        <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
                         <img src="${item.snippet.thumbnails.default.url}" class="w-10 h-7 object-cover rounded cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">
                         <span class="truncate text-slate-200 flex-1 font-medium cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">${escapeHTML(item.snippet.title)}</span>
-                        <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] ml-1 shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
                     `;
                     resContainer.appendChild(div);
                 });
@@ -772,49 +774,6 @@
             resContainer.innerHTML = '<div class="text-xs text-red-400 p-2 text-center">Search failed.</div>';
         }
     }
-
-    function playYouTubeVideo(videoId, title) {
-        // Hide the search results
-        document.getElementById('yt-results-container').classList.add('hidden');
-        document.getElementById('yt-results-container').classList.remove('flex');
-        
-        // Show the YouTube player container
-        document.getElementById('yt-player-container-dj').classList.remove('hidden');
-        
-        // Pause local audio player if playing
-        const localPlayer = document.getElementById('dj-audio-player');
-        if(!localPlayer.paused) localPlayer.pause();
-        
-        // Set DJ track info & announce to listeners
-        broadcastToListeners({ type: 'meta', track: title, color: myStationColor, hype: globalHypeCount });
-
-        if(!djYtPlayer) {
-            djYtPlayer = new YT.Player('yt-player-dj', {
-                height: '100%', width: '100%', videoId: videoId,
-                playerVars: { 'autoplay': 1, 'controls': 1 },
-                events: {
-                    'onReady': (event) => { 
-                        event.target.playVideo(); 
-                        const vol = document.getElementById('music-vol').value;
-                        event.target.setVolume(Math.min(vol * 100, 100)); 
-                    },
-                    'onStateChange': (event) => {
-                        // Sync Play/Pause and exact time with listeners over WebRTC
-                        if(event.data === YT.PlayerState.PLAYING) {
-                            broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: videoId, time: event.target.getCurrentTime() });
-                            document.getElementById('vinyl-icon').classList.remove('vinyl-paused');
-                        } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-                            broadcastToListeners({ type: 'yt_cmd', action: 'pause' });
-                            document.getElementById('vinyl-icon').classList.add('vinyl-paused');
-                        }
-                    }
-                }
-            });
-        } else {
-            djYtPlayer.loadVideoById(videoId);
-        }
-    }
-
 
     // --- AUDIO MIXER & SYNTH FX (DJ) ---
     function updateMixer() {
