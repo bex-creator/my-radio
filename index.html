@@ -1212,7 +1212,7 @@
             updateMixer(); 
 
             djPlayer.addEventListener('ended', () => {
-                if (!isLooping && currentTrackIndex < playlist.length - 1) playTrack(currentTrackIndex + 1);
+                playNextTrack();
             });
 
             localStream = destinationNode.stream;
