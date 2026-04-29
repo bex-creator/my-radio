@@ -773,7 +773,8 @@
             if (item.type === 'youtube' && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
                 try {
                     const vidObj = djYtPlayer.getVideoData();
-                    if (vidObj && vidObj.video_id) {
+                    // Ensure we are playing the requested video ID, preventing broadcast of mid-roll ad times
+                    if (vidObj && vidObj.video_id && vidObj.video_id === item.id) {
                         broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: vidObj.video_id, time: djYtPlayer.getCurrentTime() });
                     }
                 } catch(e) {}
@@ -840,7 +841,6 @@
                     const safeTitle = escapeHTML(item.snippet.title).replace(/'/g, "\\'");
                     div.className = 'flex items-center gap-2 p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded transition text-xs border border-transparent hover:border-slate-600';
                     
-                    // Moved the "Add to Mix" button to the LEFT side of the thumbnail/title
                     div.innerHTML = `
                         <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
                         <img src="${item.snippet.thumbnails.default.url}" class="w-10 h-7 object-cover rounded cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">
@@ -1123,17 +1123,31 @@
                         if (currentData.video_id !== data.videoId) {
                              listenerYtPlayer.loadVideoById(data.videoId, data.time || 0);
                         } else {
-                             if (data.action === 'play' && listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                             if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
                                  listenerYtPlayer.playVideo();
                              }
+                             
                              if(data.time !== undefined && listenerYtPlayer.getCurrentTime) {
                                  const current = listenerYtPlayer.getCurrentTime();
-                                 if(Math.abs(current - data.time) > 3) {
-                                     // Prevent restarting if DJ was delayed by an ad but listener is already playing
-                                     if (data.time < 5 && current > data.time) {
-                                         // Let listener stay slightly ahead to avoid jarring restarts
-                                     } else {
-                                         listenerYtPlayer.seekTo(data.time); // Keep synced
+                                 const diff = current - data.time;
+                                 
+                                 // Check if out of sync by more than 4 seconds
+                                 if(Math.abs(diff) > 4) {
+                                     if (data.action === 'sync') {
+                                         // For routine syncs: ONLY force a skip forward if listener is lagging behind.
+                                         // NEVER rewind listener backward during routine syncs (safeguard against DJ pausing or watching an ad)
+                                         if (diff < -5) {
+                                             listenerYtPlayer.seekTo(data.time);
+                                         }
+                                     } else if (data.action === 'play') {
+                                         // For explicit DJ actions (playing or scrubbing):
+                                         // Protection against the "ad finishes -> song resets to 0:00" symptom.
+                                         // If DJ's ad finishes, it sends play starting near 0, but if listener is already > 10s in, ignore the reset.
+                                         if (data.time < 2 && current > 10) {
+                                             // Ignore - DJ just finished a pre-roll ad and the real video started
+                                         } else {
+                                             listenerYtPlayer.seekTo(data.time);
+                                         }
                                      }
                                  }
                              }
@@ -1322,10 +1336,12 @@
 
             // Periodically sync YouTube time with all listeners to ensure nobody drifts
             setInterval(() => {
-                if (isBroadcasting && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function' && djYtPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                if (isBroadcasting && playlist.length > 0 && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function' && djYtPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
                     try {
+                        const item = playlist[currentTrackIndex];
                         const vidObj = djYtPlayer.getVideoData();
-                        if(vidObj && vidObj.video_id) {
+                        // Only broadcast sync if the correct video is verified (protects against broadcasting mid-roll ad times)
+                        if(vidObj && vidObj.video_id && vidObj.video_id === item.id) {
                             broadcastToListeners({ 
                                 type: 'yt_cmd', 
                                 action: 'sync', 
