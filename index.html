@@ -257,8 +257,10 @@
                     
                     <div id="yt-results-container" class="hidden flex-col gap-1 mb-3 z-10 max-h-40 overflow-y-auto custom-scrollbar bg-slate-900 rounded-lg p-1 border border-slate-700 shadow-xl"></div>
 
-                    <!-- Hidden DJ YouTube Player (Audio Only) -->
-                    <div id="yt-player-dj" style="position: absolute; width: 1px; height: 1px; left: -9999px;"></div>
+                    <!-- DJ YouTube Player Container -->
+                    <div id="yt-player-container-dj" class="hidden z-10 w-full mb-3 rounded-lg overflow-hidden border border-slate-800 bg-black h-[180px] shrink-0">
+                        <div id="yt-player-dj" class="w-full h-full"></div>
+                    </div>
 
                     <audio id="dj-audio-player" controls class="w-full h-10 mt-auto z-10 outline-none rounded-lg" onplay="onDJPlay()" onpause="document.getElementById('vinyl-icon').classList.add('vinyl-paused')"></audio>
                 </div>
@@ -689,27 +691,30 @@
         currentTrackIndex = index;
         const item = playlist[index];
         const djPlayer = document.getElementById('dj-audio-player');
+        const ytContainer = document.getElementById('yt-player-container-dj');
         
         document.getElementById('playlist-container').classList.remove('hidden');
         document.getElementById('playlist-container').classList.add('flex');
 
         if (item instanceof File) {
-            // Pause YouTube
+            // Pause YouTube and hide container
             if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') djYtPlayer.pauseVideo();
+            ytContainer.classList.add('hidden');
             djPlayer.classList.remove('hidden');
 
             djPlayer.src = URL.createObjectURL(item);
             djPlayer.play();
             broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
         } else if (item.type === 'youtube') {
-            // Pause Local File
+            // Pause Local File and show container
             djPlayer.pause();
             djPlayer.classList.add('hidden');
+            ytContainer.classList.remove('hidden');
 
             if (!djYtPlayer) {
                 djYtPlayer = new YT.Player('yt-player-dj', {
-                    height: '1', width: '1', videoId: item.id,
-                    playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
+                    height: '100%', width: '100%', videoId: item.id,
+                    playerVars: { 'autoplay': 1, 'controls': 1, 'playsinline': 1 },
                     events: {
                         'onReady': (event) => {
                             event.target.setVolume(document.getElementById('music-vol').value * 100);
