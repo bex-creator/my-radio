@@ -1117,63 +1117,57 @@
             fireConfetti();
         } else if (data.type === 'yt_cmd' && !isBroadcasting) {
             // LISTENER SIDE: Execute YouTube sync commands from the DJ
-            if (data.action === 'play' || data.action === 'sync') {
-                if(!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
-                    listenerYtPlayer = new YT.Player('yt-player-listener', {
-                        height: '200', width: '200', videoId: data.videoId,
-                        playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
-                        events: {
-                            'onReady': (event) => { 
-                                event.target.unMute();
-                                event.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
-                                if (data.time) event.target.seekTo(data.time);
-                                event.target.playVideo(); 
-                            }
-                        }
-                    });
-                } else {
-                    try {
-                        const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
-                        
-                        // Always ensure unmuted when DJ plays
-                        if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
-                        if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
+            
+            // Queue the command if the player is still initializing to prevent iframe crashes
+            if(!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
+                if (data.action === 'play' || data.action === 'sync') {
+                    window.queuedYtCmd = data;
+                }
+                return;
+            }
+            
+            try {
+                const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
+                
+                if (data.action === 'play' || data.action === 'sync') {
+                    // Always ensure unmuted when DJ plays
+                    if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
+                    if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
 
-                        if (currentData.video_id !== data.videoId) {
-                             listenerYtPlayer.loadVideoById(data.videoId, data.time || 0);
-                        } else {
-                             if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
-                                 listenerYtPlayer.playVideo();
-                             }
+                    if (currentData.video_id !== data.videoId) {
+                         listenerYtPlayer.loadVideoById(data.videoId, data.time || 0);
+                    } else {
+                         if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING && data.action === 'play') {
+                             listenerYtPlayer.playVideo();
+                         }
+                         
+                         if(data.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
+                             const current = listenerYtPlayer.getCurrentTime();
+                             const diff = current - data.time;
                              
-                             if(data.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
-                                 const current = listenerYtPlayer.getCurrentTime();
-                                 const diff = current - data.time;
-                                 
-                                 // Check if out of sync by more than 4 seconds
-                                 if(Math.abs(diff) > 4) {
-                                     if (data.action === 'sync') {
-                                         // For routine syncs: ONLY force a skip forward if listener is lagging behind.
-                                         if (diff < -5) {
-                                             listenerYtPlayer.seekTo(data.time);
-                                         }
-                                     } else if (data.action === 'play') {
-                                         // Protection against the "ad finishes -> song resets to 0:00" symptom.
-                                         if (!(data.time < 2 && current > 10)) {
-                                             listenerYtPlayer.seekTo(data.time);
-                                         }
+                             // Check if out of sync by more than 4 seconds
+                             if(Math.abs(diff) > 4) {
+                                 if (data.action === 'sync') {
+                                     // For routine syncs: ONLY force a skip forward if listener is lagging behind.
+                                     if (diff < -5) {
+                                         listenerYtPlayer.seekTo(data.time);
+                                     }
+                                 } else if (data.action === 'play') {
+                                     // Protection against the "ad finishes -> song resets to 0:00" symptom.
+                                     if (!(data.time < 2 && current > 10)) {
+                                         listenerYtPlayer.seekTo(data.time);
                                      }
                                  }
                              }
-                        }
-                    } catch(e) {
-                        console.warn("YT Sync Error", e);
+                         }
+                    }
+                } else if (data.action === 'pause') {
+                    if(typeof listenerYtPlayer.pauseVideo === 'function') {
+                        listenerYtPlayer.pauseVideo();
                     }
                 }
-            } else if (data.action === 'pause') {
-                if(listenerYtPlayer && typeof listenerYtPlayer.pauseVideo === 'function') {
-                    listenerYtPlayer.pauseVideo();
-                }
+            } catch(e) {
+                console.warn("YT Sync Error", e);
             }
         }
     }
@@ -1446,7 +1440,19 @@
             listenerYtPlayer = new YT.Player('yt-player-listener', {
                 height: '10', width: '10',
                 playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
-                events: { 'onReady': (e) => { e.target.mute(); } }
+                events: { 
+                    'onReady': (e) => { 
+                        e.target.mute(); 
+                        
+                        // Process any playback commands that arrived via WebRTC while initializing
+                        if (window.queuedYtCmd) {
+                            e.target.unMute();
+                            e.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
+                            e.target.loadVideoById(window.queuedYtCmd.videoId, window.queuedYtCmd.time || 0);
+                            window.queuedYtCmd = null;
+                        }
+                    } 
+                }
             });
         }
 
@@ -1479,7 +1485,8 @@
                     setupVisualizer(remoteStream, 'listener-visualizer', myStationColor, false); 
                 }).catch(e => {
                     document.getElementById('listener-status-text').innerText = "Tap icon to start audio";
-                    document.getElementById('listener-status-icon').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 cursor-pointer hover:scale-110 transition" style="color: ${myStationColor}" viewBox="0 0 20 20" fill="currentColor" onclick="document.getElementById('audio-player').play(); setListenerStateLive();"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
+                    // Fallback button now ensures YouTube is triggered if the browser blocked autoplay
+                    document.getElementById('listener-status-icon').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 cursor-pointer hover:scale-110 transition" style="color: ${myStationColor}" viewBox="0 0 20 20" fill="currentColor" onclick="document.getElementById('audio-player').play(); if(listenerYtPlayer && typeof listenerYtPlayer.unMute === 'function'){listenerYtPlayer.unMute(); listenerYtPlayer.playVideo();} setListenerStateLive();"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
                 });
             });
         });
