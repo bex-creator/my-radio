@@ -1342,7 +1342,7 @@
             
             const token = generateLiveKitToken(lkKey, lkSecret, myStationId, myUsername, true);
             
-            room = new LiveKit.Room({
+            room = new LivekitClient.Room({
                 adaptiveStream: false,
                 dynacast: false,
             });
@@ -1368,7 +1368,7 @@
             const localAudioTrack = localStream.getAudioTracks()[0];
             await room.localParticipant.publishTrack(localAudioTrack, {
                 name: 'master-audio',
-                source: LiveKit.Track.Source.Microphone,
+                source: LivekitClient.Track.Source.Microphone,
                 simulcast: false,
             });
 
@@ -1499,7 +1499,7 @@
         document.getElementById('listener-status-text').innerText = "Connecting to SFU Server...";
 
         const token = generateLiveKitToken(lkKey, lkSecret, stationId, myUsername, false);
-        room = new LiveKit.Room();
+        room = new LivekitClient.Room();
 
         room.on('disconnected', () => {
             setListenerStateOff();
