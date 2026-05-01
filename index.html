@@ -841,8 +841,18 @@
         if (newFiles.length > 0) {
             const wasEmpty = playlist.length === 0;
             playlist = playlist.concat(newFiles);
+            
+            // Force the queue container to be visible immediately
+            document.getElementById('playlist-container').classList.remove('hidden');
+            document.getElementById('playlist-container').classList.add('flex');
+            
             renderPlaylist();
-            if (wasEmpty) playTrack(0);
+            
+            if (wasEmpty) {
+                playTrack(0);
+            } else {
+                syncPlaylistToFirebase();
+            }
         }
         e.target.value = '';
     }
@@ -852,9 +862,17 @@
         const item = { type: 'youtube', id: videoId, name: title };
         const wasEmpty = playlist.length === 0;
         playlist.push(item);
+        
+        // Force the queue container to be visible immediately
+        document.getElementById('playlist-container').classList.remove('hidden');
+        document.getElementById('playlist-container').classList.add('flex');
+        
         renderPlaylist();
+        
         if (wasEmpty || playNow) {
             playTrack(playlist.length - 1);
+        } else {
+            syncPlaylistToFirebase();
         }
     }
 
@@ -984,6 +1002,7 @@
         }
         currentTrackIndex = playlist.indexOf(currentFile);
         renderPlaylist();
+        syncPlaylistToFirebase();
     }
 
     function updateTempo() {
