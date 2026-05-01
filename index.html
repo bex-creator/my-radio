@@ -60,10 +60,10 @@
         .floating-emoji {
             position: fixed;
             bottom: -50px;
-            font-size: 2rem;
+            font-size: 3.5rem; /* Increased size! */
             pointer-events: none;
             animation: floatUp 4s ease-in forwards;
-            z-index: 50;
+            z-index: 99999; /* Forced to the very top */
             filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));
         }
         @keyframes floatUp {
@@ -76,7 +76,7 @@
         .confetti-piece {
             position: fixed;
             pointer-events: none;
-            z-index: 100;
+            z-index: 99999; /* Forced to the very top */
         }
 
         .vinyl-spin { animation: spin 4s linear infinite; }
@@ -540,7 +540,10 @@
     // --- GLOBAL STATE ---
     let myUsername = "Anonymous";
     let globalHypeCount = 0;
-    let lastReactionTs = 0; 
+    
+    // Bulletproof Emoji Tracker (Fixes Clock Skew)
+    let lastReactionId = null;
+    let isFirstReactionSync = true;
     
     let isBroadcasting = false;
     let myStationId = null;
@@ -957,6 +960,15 @@
             }
         }).catch(e => console.error(e));
     }
+    
+    function syncPlaylistToFirebase() {
+        if (!isBroadcasting || !currentStationRef) return;
+        const cleanPlaylist = playlist.map(item => item instanceof File ? { type: 'local', name: item.name } : item);
+        fbUpdateDoc(currentStationRef, {
+            playlist: cleanPlaylist,
+            currentTrackIndex: currentTrackIndex
+        }).catch(e => console.error(e));
+    }
 
     function toggleLoop() {
         isLooping = !isLooping;
@@ -983,6 +995,33 @@
         document.getElementById('tempo-label').innerText = parseFloat(val).toFixed(2) + 'x';
     }
 
+    function removeTrack(index, event) {
+        if(event) event.stopPropagation();
+        
+        const wasPlaying = (index === currentTrackIndex);
+        playlist.splice(index, 1);
+        
+        if (playlist.length === 0) {
+            currentTrackIndex = 0;
+            const djPlayer = document.getElementById('dj-audio-player');
+            djPlayer.pause();
+            if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') djYtPlayer.pauseVideo();
+            document.getElementById('vinyl-icon').classList.add('vinyl-paused');
+            pushSyncStateToFirebase('paused', 'No track selected');
+        } else if (wasPlaying) {
+            if (currentTrackIndex >= playlist.length) {
+                 currentTrackIndex = isLooping ? 0 : playlist.length - 1; 
+            }
+            playTrack(currentTrackIndex);
+        } else {
+            if (index < currentTrackIndex) {
+                currentTrackIndex--;
+            }
+            syncPlaylistToFirebase();
+        }
+        renderPlaylist();
+    }
+
     function renderPlaylist() {
         const list = document.getElementById('playlist-list');
         list.innerHTML = '';
@@ -991,9 +1030,15 @@
             const isActive = i === currentTrackIndex;
             const isYT = item.type === 'youtube';
             const icon = isYT ? '📺' : '🎵 (Local)';
-            el.className = `truncate cursor-pointer transition px-3 py-1.5 rounded-lg text-xs font-medium ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 border border-transparent'}`;
-            el.innerHTML = isActive ? `<span class="animate-pulse mr-1">▶</span> ${icon} ${escapeHTML(item.name)}` : `<span class="opacity-50">${i + 1}.</span> ${icon} ${escapeHTML(item.name)}`;
-            el.onclick = () => playTrack(i);
+            
+            el.className = `flex justify-between items-center group transition px-3 py-1.5 rounded-lg text-xs font-medium ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 border border-transparent'}`;
+            
+            el.innerHTML = `
+                <div class="truncate cursor-pointer flex-1" onclick="playTrack(${i})">
+                    ${isActive ? `<span class="animate-pulse mr-1">▶</span>` : `<span class="opacity-50">${i + 1}.</span>`} ${icon} ${escapeHTML(item.name)}
+                </div>
+                <button onclick="removeTrack(${i}, event)" class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 font-bold px-2 py-1 transition rounded hover:bg-red-500/20 shrink-0 ml-2" title="Remove Track">×</button>
+            `;
             list.appendChild(el);
         });
     }
@@ -1295,10 +1340,12 @@
             renderChatWindow(msgs, 'dj');
         });
         
+        isFirstReactionSync = true;
         activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
             if(docSnap.exists()) {
                 const data = docSnap.data();
                 document.getElementById('listener-count').innerText = data.activeListeners ? data.activeListeners.length : 0;
+                
                 if (data.hype > globalHypeCount) {
                     globalHypeCount = data.hype;
                     const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
@@ -1307,11 +1354,15 @@
                 globalHypeCount = data.hype || globalHypeCount;
                 updateHypeUI();
                 
-                if (data.latestReaction && data.latestReaction.ts > lastReactionTs) {
-                     lastReactionTs = data.latestReaction.ts;
-                     if(data.latestReaction.emoji === '🎉') fireConfetti();
-                     else showFloatingEmoji(data.latestReaction.emoji);
+                // New bulletproof Emoji Sync
+                if (data.latestReaction && data.latestReaction.id !== lastReactionId) {
+                     lastReactionId = data.latestReaction.id;
+                     if (!isFirstReactionSync) {
+                         if(data.latestReaction.emoji === '🎉') fireConfetti();
+                         else showFloatingEmoji(data.latestReaction.emoji);
+                     }
                 }
+                isFirstReactionSync = false;
             }
         });
     }
@@ -1319,7 +1370,6 @@
     async function restoreBroadcaster(savedId) {
         if (isBroadcasting) return; 
 
-        // Fetch the data from the DB just to be sure we have the latest
         const docRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', savedId);
         const docSnap = await window.fbGetDoc(docRef);
         if(!docSnap.exists()) {
@@ -1341,7 +1391,6 @@
         currentStationRef = fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', myStationId);
         isBroadcasting = true;
         
-        // Restore playlist (filtering out local files that can't be recovered)
         if (data.playlist) {
             playlist = data.playlist.filter(p => p.type === 'youtube');
             currentTrackIndex = data.currentTrackIndex || 0;
@@ -1361,10 +1410,12 @@
             renderChatWindow(msgs, 'dj');
         });
         
+        isFirstReactionSync = true;
         activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
             if(docSnap.exists()) {
                 const docData = docSnap.data();
                 document.getElementById('listener-count').innerText = docData.activeListeners ? docData.activeListeners.length : 0;
+                
                 if (docData.hype > globalHypeCount) {
                     globalHypeCount = docData.hype;
                     const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
@@ -1373,11 +1424,15 @@
                 globalHypeCount = docData.hype || globalHypeCount;
                 updateHypeUI();
                 
-                if (docData.latestReaction && docData.latestReaction.ts > lastReactionTs) {
-                     lastReactionTs = docData.latestReaction.ts;
-                     if(docData.latestReaction.emoji === '🎉') fireConfetti();
-                     else showFloatingEmoji(docData.latestReaction.emoji);
+                // New bulletproof Emoji Sync
+                if (docData.latestReaction && docData.latestReaction.id !== lastReactionId) {
+                     lastReactionId = docData.latestReaction.id;
+                     if (!isFirstReactionSync) {
+                         if(docData.latestReaction.emoji === '🎉') fireConfetti();
+                         else showFloatingEmoji(docData.latestReaction.emoji);
+                     }
                 }
+                isFirstReactionSync = false;
             }
         });
     }
@@ -1473,6 +1528,7 @@
             }
         });
 
+        isFirstReactionSync = true;
         activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
             if (!docSnap.exists()) {
                 setListenerStateOff();
@@ -1490,11 +1546,15 @@
             globalHypeCount = data.hype || 0;
             updateHypeUI();
             
-            if (data.latestReaction && data.latestReaction.ts > lastReactionTs) {
-                 lastReactionTs = data.latestReaction.ts;
-                 if(data.latestReaction.emoji === '🎉') fireConfetti();
-                 else showFloatingEmoji(data.latestReaction.emoji);
+            // New bulletproof Emoji Sync
+            if (data.latestReaction && data.latestReaction.id !== lastReactionId) {
+                 lastReactionId = data.latestReaction.id;
+                 if (!isFirstReactionSync) {
+                     if(data.latestReaction.emoji === '🎉') fireConfetti();
+                     else showFloatingEmoji(data.latestReaction.emoji);
+                 }
             }
+            isFirstReactionSync = false;
             
             if (data.currentTrack) {
                 document.getElementById('now-playing-container').classList.remove('hidden');
@@ -1680,7 +1740,73 @@
         iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 011.414 0L10 14.586H8.414l-1.414-1.414-4.707 4.707A1 1 0 011 17v-4a1 1 0 011-1h1.586l4.707-4.707C8.923 6.663 10 7.109 10 8v5.586l1.414-1.414z" /></svg>`;
     }
 
-    // --- SECRETS & CLEANUP ---
+    // --- SECRETS, EMOJIS & CLEANUP ---
+    async function sendReaction(emoji) {
+        // Generate a random ID immediately so we don't accidentally ignore our own reaction or double-fire
+        const reactionId = Math.random().toString(36).substr(2, 9);
+        lastReactionId = reactionId;
+        
+        // Show it locally instantly for zero-latency feedback
+        if(emoji === '🎉') fireConfetti();
+        else showFloatingEmoji(emoji);
+        
+        if (emoji === '💖') {
+            globalHypeCount++;
+            updateHypeUI();
+        }
+
+        if (currentStationRef) {
+            const updateData = { latestReaction: { emoji: emoji, id: reactionId } };
+            if (emoji === '💖') updateData.hype = globalHypeCount;
+            fbUpdateDoc(currentStationRef, updateData).catch(e => console.error(e));
+        }
+    }
+
+    function showFloatingEmoji(emoji) {
+        const el = document.createElement('div');
+        el.className = 'floating-emoji';
+        el.innerText = emoji;
+        el.style.left = `${Math.random() * 80 + 10}%`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+    
+    function triggerConfettiSync() {
+        sendReaction('🎉'); // Re-using reaction pipeline for host confetti
+    }
+
+    function fireConfetti() {
+        const colors = ['#10b981', '#06b6d4', '#ec4899', '#f59e0b', '#8b5cf6', '#ffffff'];
+        for(let i=0; i<60; i++) {
+            let conf = document.createElement('div');
+            conf.className = 'confetti-piece';
+            
+            const w = Math.random() * 8 + 4;
+            const h = Math.random() > 0.5 ? w : w * 2;
+            conf.style.width = `${w}px`;
+            conf.style.height = `${h}px`;
+            conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            conf.style.left = '50vw';
+            conf.style.top = '-5vh';
+            
+            const tx = (Math.random() - 0.5) * 100; 
+            const ty = 110; 
+            const r = Math.random() * 1000 - 500; 
+            
+            conf.style.transition = `transform ${Math.random() * 1.5 + 2}s cubic-bezier(.37,0,.63,1), opacity 3s`;
+            
+            document.body.appendChild(conf);
+            
+            requestAnimationFrame(() => {
+                conf.style.transform = `translate(${tx}vw, ${ty}vh) rotate(${r}deg)`;
+                setTimeout(() => conf.style.opacity = '0', 1500); 
+            });
+            
+            setTimeout(() => conf.remove(), 4000);
+        }
+    }
+
     async function adminWipeAllStations() {
         if(!fbDb) return;
         const dash = document.getElementById('dashboard-status');
