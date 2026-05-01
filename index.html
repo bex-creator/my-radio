@@ -555,7 +555,7 @@
     let activeStationUnsubscribe = null;
 
     // We must expose these so our sync logic can use them
-    let fbDoc, fbSetDoc, fbUpdateDoc, fbCollection, fbOnSnapshot, fbAddDoc;
+    let fbDoc, fbSetDoc, fbUpdateDoc, fbCollection, fbOnSnapshot, fbAddDoc, fbGetDocs;
 
     // Your direct Firebase configuration
     const firebaseConfig = {
@@ -573,7 +573,7 @@
         try {
             const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
             const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
-            const { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+            const { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDoc, getDocs } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
 
             fbAppId = firebaseConfig.projectId;
 
@@ -588,6 +588,7 @@
             fbCollection = collection;
             fbOnSnapshot = onSnapshot;
             fbAddDoc = addDoc;
+            fbGetDocs = getDocs;
             window.fbDeleteDoc = deleteDoc; 
             window.fbArrayUnion = arrayUnion;
             window.fbArrayRemove = arrayRemove;
@@ -1713,6 +1714,52 @@
             setTimeout(() => conf.remove(), 4000);
         }
     }
+
+    async function adminWipeAllStations() {
+        if(!fbDb) return;
+        
+        const dashboardStatus = document.getElementById('dashboard-status');
+        dashboardStatus.innerText = "⚠️ WIPING ALL GHOST STATIONS...";
+        dashboardStatus.style.color = "#ef4444"; // red-500
+        
+        try {
+            const stationsRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations');
+            const snapshot = await fbGetDocs(stationsRef);
+            let count = 0;
+            snapshot.forEach(docSnap => {
+                window.fbDeleteDoc(docSnap.ref);
+                count++;
+            });
+            
+            dashboardStatus.innerText = `✅ WIPED ${count} STATIONS`;
+            localStorage.removeItem('myActiveStation');
+            
+            setTimeout(() => {
+                dashboardStatus.innerText = "Stations synced via Firebase.";
+                dashboardStatus.style.color = "";
+            }, 3000);
+        } catch(e) {
+            console.error(e);
+            dashboardStatus.innerText = "❌ WIPE ERROR";
+            setTimeout(() => {
+                dashboardStatus.innerText = "Stations synced via Firebase.";
+                dashboardStatus.style.color = "";
+            }, 3000);
+        }
+    }
+
+    // Secret code listener
+    let secretCodeBuffer = "";
+    document.addEventListener('keydown', (e) => {
+        secretCodeBuffer += e.key;
+        if (secretCodeBuffer.length > 15) {
+            secretCodeBuffer = secretCodeBuffer.slice(-15);
+        }
+        if (secretCodeBuffer.endsWith("07312012")) {
+            secretCodeBuffer = "";
+            adminWipeAllStations();
+        }
+    });
 
     // App starts by initializing Firebase directly with your configuration
     window.onload = initFirebaseAndApp;
