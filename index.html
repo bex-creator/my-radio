@@ -630,11 +630,15 @@
 
             // Adding global sign in functions
             window.signInWithGoogle = async () => {
+                const btn = document.getElementById('google-login-btn');
+                const origHtml = btn.innerHTML;
+                btn.innerHTML = 'Signing in...';
                 try {
                     await signInWithPopup(fbAuth, googleProvider);
                 } catch(e) {
                     console.error(e);
                     alert("Google Sign-In failed. Please make sure you have enabled Google Auth in your Firebase Console (Authentication -> Sign-in method -> Google).");
+                    btn.innerHTML = origHtml;
                 }
             };
 
@@ -679,6 +683,9 @@
                                 document.getElementById('setup-form-container').classList.add('hidden');
                                 document.getElementById('resume-container').classList.remove('hidden');
                                 document.getElementById('resume-station-btn').onclick = () => restoreBroadcaster(savedStationId, docSnap.data());
+                                
+                                // Automatically jump back into the broadcast!
+                                restoreBroadcaster(savedStationId, docSnap.data());
                             } else {
                                 // Clear dead station data
                                 window.fbUpdateDoc(profileRef, { activeStationId: null }).catch(()=>{});
@@ -1350,6 +1357,8 @@
 
     // Auto-restore DJ Session from localStorage
     async function restoreBroadcaster(savedId, data) {
+        if (isBroadcasting) return; // Prevent duplicate restoration
+
         myStationId = savedId;
         myStationName = data.name;
         myUsername = data.host;
