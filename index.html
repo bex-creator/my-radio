@@ -573,7 +573,7 @@
         try {
             const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
             const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
-            const { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, arrayUnion, arrayRemove } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+            const { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDoc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
 
             fbAppId = firebaseConfig.projectId;
 
@@ -591,6 +591,7 @@
             window.fbDeleteDoc = deleteDoc; 
             window.fbArrayUnion = arrayUnion;
             window.fbArrayRemove = arrayRemove;
+            window.fbGetDoc = getDoc;
 
             // RULE 3: Auth First
             try {
@@ -601,10 +602,27 @@
                 return;
             }
 
-            onAuthStateChanged(fbAuth, (user) => {
+            onAuthStateChanged(fbAuth, async (user) => {
                 if (user) {
                     fbUserId = user.uid;
-                    initDashboard();
+                    
+                    // AUTO-REJOIN LOGIC
+                    const savedStationId = localStorage.getItem('myActiveStation');
+                    if (savedStationId) {
+                        try {
+                            const docRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', savedStationId);
+                            const docSnap = await window.fbGetDoc(docRef);
+                            if (docSnap.exists() && docSnap.data().hostUid === fbUserId) {
+                                restoreBroadcaster(savedStationId, docSnap.data());
+                            } else {
+                                localStorage.removeItem('myActiveStation');
+                                initDashboard();
+                            }
+                        } catch(e) { initDashboard(); }
+                    } else {
+                        initDashboard();
+                    }
+                    
                     loadSavedPlaylist();
                     loadTotalHearts();
                     loadUserProfile();
@@ -818,14 +836,22 @@
 
     function pushSyncStateToFirebase(status, trackName, videoId = null, time = 0) {
         if (!isBroadcasting || !currentStationRef) return;
+        
+        // Calculate the exact epoch time the video STARTED based on current time
+        const startTs = Date.now() - (time * 1000);
+        
+        // Strip out raw Local Files before saving playlist to cloud
+        const cleanPlaylist = playlist.map(item => item instanceof File ? { type: 'local', name: item.name } : item);
+
         fbUpdateDoc(currentStationRef, {
             updatedAt: Date.now(),
+            playlist: cleanPlaylist,
+            currentTrackIndex: currentTrackIndex,
             currentTrack: {
                 status: status, // 'playing', 'paused', 'local'
                 title: trackName,
                 videoId: videoId,
-                time: time,
-                timestamp: Date.now()
+                startTs: startTs
             }
         }).catch(e => console.error(e));
     }
@@ -1170,54 +1196,36 @@
         myStationId = 'STN-' + Math.random().toString(36).substr(2, 6).toUpperCase();
 
         saveUserProfile(myUsername, myStationColor);
+        localStorage.setItem('myActiveStation', myStationId);
 
         switchView('dj-view');
         document.getElementById('dj-station-name').innerText = myStationName;
         document.getElementById('dj-station-name').style.color = myStationColor;
         document.getElementById('station-id-display').innerText = myStationId;
 
-        // Create the Room in Firebase with the DJ's lifetime hearts
+        // Create the Room in Firebase
         currentStationRef = fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', myStationId);
         await fbSetDoc(currentStationRef, {
             name: myStationName,
             host: myUsername,
+            hostUid: fbUserId,
             color: myStationColor,
             hype: globalHypeCount,
             activeListeners: [],
+            playlist: [],
+            currentTrackIndex: 0,
             updatedAt: Date.now(),
             currentTrack: null
         });
 
         isBroadcasting = true;
 
-        // Periodic Sync Loop (Heartbeat)
+        // Periodic Sync Loop (Heartbeat) - Drastically reduced since we use absolute startTs for playback
         setInterval(() => {
             if (!isBroadcasting || !currentStationRef) return;
-            
-            let trackData = null;
-            if (playlist.length > 0 && playlist[currentTrackIndex].type === 'youtube' && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
-                const state = djYtPlayer.getPlayerState();
-                if (state === YT.PlayerState.PLAYING) {
-                     const vidObj = djYtPlayer.getVideoData();
-                     if (vidObj && vidObj.video_id) {
-                         trackData = {
-                             status: 'playing',
-                             title: playlist[currentTrackIndex].name,
-                             videoId: vidObj.video_id,
-                             time: djYtPlayer.getCurrentTime(),
-                             timestamp: Date.now()
-                         };
-                     }
-                }
-            }
-            
-            // Just update timestamp to keep room alive, and time if playing
-            const updateObj = { updatedAt: Date.now() };
-            if (trackData) updateObj.currentTrack = trackData;
-            
-            fbUpdateDoc(currentStationRef, updateObj).catch(e => console.error(e));
-            
-        }, 4000);
+            // Only update heartbeat to keep room alive and show DJ is online
+            fbUpdateDoc(currentStationRef, { updatedAt: Date.now() }).catch(e => console.error(e));
+        }, 10000);
 
         // Listen to Chat
         const chatRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'chat_' + myStationId);
@@ -1228,29 +1236,82 @@
             renderChatWindow(msgs, 'dj');
         });
         
-        // Listen to Reactions / Hype (since listeners write to the doc directly)
+        // Listen to Reactions / Hype
         activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
             if(docSnap.exists()) {
                 const data = docSnap.data();
                 
-                // Update live listener count
                 document.getElementById('listener-count').innerText = data.activeListeners ? data.activeListeners.length : 0;
                 
-                // If listeners increased the hype, save it to the DJ's permanent profile
                 if (data.hype > globalHypeCount) {
                     globalHypeCount = data.hype;
                     const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
-                    window.fbUpdateDoc(profileRef, { totalHearts: globalHypeCount }).catch(e => console.error(e));
+                    window.fbUpdateDoc(profileRef, { totalHearts: globalHypeCount }).catch(e => {});
                 }
-                
                 globalHypeCount = data.hype || globalHypeCount;
                 updateHypeUI();
                 
-                // Fire Reactions & Confetti (Protected from duplicate triggers)
                 if (data.latestReaction && data.latestReaction.ts > lastReactionTs) {
                      lastReactionTs = data.latestReaction.ts;
                      if(data.latestReaction.emoji === '🎉') fireConfetti();
                      else showFloatingEmoji(data.latestReaction.emoji);
+                }
+            }
+        });
+    }
+
+    // Auto-restore DJ Session from localStorage
+    async function restoreBroadcaster(savedId, data) {
+        myStationId = savedId;
+        myStationName = data.name;
+        myUsername = data.host;
+        myStationColor = data.color || '#10b981';
+        
+        switchView('dj-view');
+        document.getElementById('dj-station-name').innerText = myStationName;
+        document.getElementById('dj-station-name').style.color = myStationColor;
+        document.getElementById('station-id-display').innerText = myStationId;
+        
+        currentStationRef = fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', myStationId);
+        isBroadcasting = true;
+        
+        // Restore playlist (filtering out local files that can't be recovered)
+        if (data.playlist) {
+            playlist = data.playlist.filter(p => p.type === 'youtube');
+            currentTrackIndex = data.currentTrackIndex || 0;
+            renderPlaylist();
+        }
+
+        setInterval(() => {
+            if (!isBroadcasting || !currentStationRef) return;
+            fbUpdateDoc(currentStationRef, { updatedAt: Date.now() }).catch(e => {});
+        }, 10000);
+
+        const chatRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'chat_' + myStationId);
+        activeChatUnsubscribe = fbOnSnapshot(chatRef, (snapshot) => {
+            const msgs = [];
+            snapshot.forEach(doc => msgs.push(doc.data()));
+            msgs.sort((a,b) => a.timestamp - b.timestamp);
+            renderChatWindow(msgs, 'dj');
+        });
+        
+        activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
+            if(docSnap.exists()) {
+                const docData = docSnap.data();
+                document.getElementById('listener-count').innerText = docData.activeListeners ? docData.activeListeners.length : 0;
+                
+                if (docData.hype > globalHypeCount) {
+                    globalHypeCount = docData.hype;
+                    const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
+                    window.fbUpdateDoc(profileRef, { totalHearts: globalHypeCount }).catch(e => {});
+                }
+                globalHypeCount = docData.hype || globalHypeCount;
+                updateHypeUI();
+                
+                if (docData.latestReaction && docData.latestReaction.ts > lastReactionTs) {
+                     lastReactionTs = docData.latestReaction.ts;
+                     if(docData.latestReaction.emoji === '🎉') fireConfetti();
+                     else showFloatingEmoji(docData.latestReaction.emoji);
                 }
             }
         });
@@ -1265,6 +1326,7 @@
     }
 
     function endBroadcast() {
+        localStorage.removeItem('myActiveStation');
         if(currentStationRef) {
             window.fbDeleteDoc(currentStationRef).finally(() => location.reload());
         } else {
@@ -1309,7 +1371,6 @@
                         playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
                         events: { 
                             'onReady': (e) => { 
-                                // Auto-unmute since the user just clicked "Tune In"
                                 if (window.audioUnlocked) {
                                     e.target.unMute();
                                     e.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
@@ -1320,6 +1381,33 @@
                                 if (window.queuedYtCmd && window.audioUnlocked) {
                                     e.target.loadVideoById(window.queuedYtCmd.videoId, window.queuedYtCmd.time || 0);
                                     window.queuedYtCmd = null;
+                                }
+                            },
+                            'onStateChange': (e) => {
+                                // OFFLINE DJ AUTO-ADVANCE LOGIC
+                                if (e.data === YT.PlayerState.ENDED) {
+                                    // Check if DJ hasn't sent a heartbeat in 15 seconds
+                                    if (window.currentStationData && (Date.now() - window.currentStationData.updatedAt > 15000)) {
+                                        const pl = window.currentStationData.playlist || [];
+                                        const nextIdx = (window.currentStationData.currentTrackIndex || 0) + 1;
+                                        
+                                        if (nextIdx < pl.length) {
+                                            const nextTrack = pl[nextIdx];
+                                            if (nextTrack.type === 'youtube') {
+                                                // Listener autonomously triggers the next track for the room!
+                                                fbUpdateDoc(currentStationRef, {
+                                                    currentTrackIndex: nextIdx,
+                                                    currentTrack: {
+                                                        status: 'playing',
+                                                        title: nextTrack.name,
+                                                        videoId: nextTrack.id,
+                                                        startTs: Date.now(),
+                                                        updatedAt: Date.now() // Listener serves as heartbeat
+                                                    }
+                                                }).catch(err => console.error(err));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1350,6 +1438,7 @@
                 return;
             }
             const data = docSnap.data();
+            window.currentStationData = data; // Keep global reference for offline detection
             
             if (!window.audioUnlocked) {
                 setListenerStateWaiting();
@@ -1429,9 +1518,9 @@
                 if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
 
                 if (currentData.video_id !== trackCmd.videoId) {
-                     listenerYtPlayer.loadVideoById(trackCmd.videoId, trackCmd.time || 0);
+                     // Initial load (starts at 0 if no time was passed, but we use startTs to calculate offset immediately)
+                     listenerYtPlayer.loadVideoById(trackCmd.videoId, 0);
                      
-                     // Force playback if browser stalls
                      setTimeout(() => {
                          if(listenerYtPlayer && typeof listenerYtPlayer.getPlayerState === 'function') {
                              const state = listenerYtPlayer.getPlayerState();
@@ -1445,17 +1534,15 @@
                          listenerYtPlayer.playVideo();
                      }
                      
-                     if(trackCmd.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
-                         // Calculate expected time based on when the DJ sent the heartbeat vs now
-                         const latencyAdj = (Date.now() - trackCmd.timestamp) / 1000;
-                         const expectedTime = trackCmd.time + (latencyAdj > 0 && latencyAdj < 10 ? latencyAdj : 0);
-                         
-                         const current = listenerYtPlayer.getCurrentTime();
+                     if(trackCmd.startTs !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
+                         // Calculate expected time based absolutely on system clocks! Background tabs don't affect this.
+                         const expectedTime = (Date.now() - trackCmd.startTs) / 1000;
+                         const current = listenerYtPlayer.getCurrentTime() || 0;
                          const diff = current - expectedTime;
                          
                          // Check if out of sync by more than 4 seconds
                          if(Math.abs(diff) > 4) {
-                             if (!(trackCmd.time < 2 && current > 10)) { // Ad protection
+                             if (!(expectedTime < 2 && current > 10)) { // YouTube Ad protection
                                  listenerYtPlayer.seekTo(expectedTime);
                              }
                          }
