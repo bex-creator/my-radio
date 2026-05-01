@@ -890,21 +890,18 @@
                             event.target.playVideo();
                         },
                         'onStateChange': (event) => {
-                            clearTimeout(djYtEndTimeout);
+                            // Fix closure bug by dynamically fetching the actual current track!
+                            const currentItem = playlist[currentTrackIndex];
+                            if (!currentItem) return;
+
                             if (event.data === YT.PlayerState.ENDED) {
-                                djYtEndTimeout = setTimeout(() => {
-                                    if (djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
-                                        const state = djYtPlayer.getPlayerState();
-                                        if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
-                                            playNextTrack();
-                                        }
-                                    }
-                                }, 2000);
+                                // Instantly skip to the next track in the queue!
+                                playNextTrack();
                             } else if (event.data === YT.PlayerState.PLAYING) {
                                 onDJPlay();
                             } else if (event.data === YT.PlayerState.PAUSED) {
                                 document.getElementById('vinyl-icon').classList.add('vinyl-paused');
-                                pushSyncStateToFirebase('paused', item.name);
+                                pushSyncStateToFirebase('paused', currentItem.name);
                             }
                         }
                     }
@@ -1621,9 +1618,15 @@
                      // Start synchronously right from where it needs to be
                      listenerYtPlayer.loadVideoById({videoId: trackCmd.videoId, startSeconds: Math.max(0, expectedTime)});
                 } else {
-                     if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                     const state = listenerYtPlayer.getPlayerState();
+                     
+                     // FIX: Do NOT restart the video if it naturally ended while waiting for the DJ to skip!
+                     if (state === YT.PlayerState.ENDED) return;
+
+                     if (state !== YT.PlayerState.PLAYING) {
                          listenerYtPlayer.playVideo();
                      }
+                     
                      if(typeof listenerYtPlayer.getCurrentTime === 'function') {
                          const current = listenerYtPlayer.getCurrentTime() || 0;
                          const diff = current - expectedTime;
