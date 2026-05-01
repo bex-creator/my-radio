@@ -5,10 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P Web Radio Ultimate</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <!-- LiveKit SFU Client & JWT Generator (Replaces PeerJS) -->
-    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.8.6/jsrsasign-all-min.js"></script>
     <!-- Add YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -118,60 +114,49 @@
         </div>
 
         <div class="space-y-6 relative z-10">
-            <div class="space-y-3">
-                <input type="text" id="station-name-input" placeholder="Station Name (e.g. Synthwave Mix)" class="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium placeholder-slate-600 transition">
-                <div class="flex gap-2">
-                    <input type="text" id="dj-username-input" placeholder="Your DJ Name" class="flex-1 bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium placeholder-slate-600 transition">
-                    <div class="relative group" title="Station Theme Color">
-                        <input type="color" id="station-color-input" value="#10b981" class="h-full w-14 bg-slate-950/50 border border-slate-700 rounded-xl cursor-pointer p-1">
+            <!-- Immediately visible since we no longer need to wait for a backend -->
+            <div id="main-setup-content" class="space-y-6">
+                <div class="space-y-3">
+                    <input type="text" id="station-name-input" placeholder="Station Name (e.g. Synthwave Mix)" class="w-full bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium placeholder-slate-600 transition">
+                    <div class="flex gap-2">
+                        <input type="text" id="dj-username-input" placeholder="Your DJ Name" class="flex-1 bg-slate-950/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-medium placeholder-slate-600 transition">
+                        <div class="relative group" title="Station Theme Color">
+                            <input type="color" id="station-color-input" value="#10b981" class="h-full w-14 bg-slate-950/50 border border-slate-700 rounded-xl cursor-pointer p-1">
+                        </div>
                     </div>
-                </div>
-                
-                <div class="p-4 rounded-xl border border-emerald-500/30 hover:border-emerald-400 bg-emerald-900/20 hover:bg-emerald-800/30 transition cursor-pointer group flex items-center gap-4" onclick="startBroadcaster()">
-                    <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/40 transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-400 group-hover:text-emerald-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-lg text-emerald-50 transition">Start Broadcasting</h3>
-                        <p class="text-emerald-200/60 text-xs">Mix mic, music, effects, and chat.</p>
+
+                    <div class="p-4 rounded-xl border border-emerald-500/30 hover:border-emerald-400 bg-emerald-900/20 hover:bg-emerald-800/30 transition cursor-pointer group flex items-center gap-4" onclick="startBroadcaster()">
+                        <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/40 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-400 group-hover:text-emerald-300" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-emerald-50 transition">Start Broadcasting</h3>
+                            <p class="text-emerald-200/60 text-xs">Mix mic, music, effects, and chat.</p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="p-4 bg-slate-900 border border-slate-700 rounded-xl shadow-inner">
-                    <h4 class="text-xs font-bold text-cyan-400 mb-1 uppercase tracking-wider flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" /></svg>
-                        SFU Server (LiveKit)
-                    </h4>
-                    <p class="text-[10px] text-slate-400 mb-3 leading-tight">Option 3: Unlimited Listeners. Get your free API credentials at <a href="https://cloud.livekit.io" target="_blank" class="text-emerald-400 underline hover:text-emerald-300">livekit.io</a>.</p>
-                    <div class="space-y-2">
-                        <input type="text" id="lk-url" placeholder="wss://your-project.livekit.cloud" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
-                        <input type="text" id="lk-key" placeholder="API Key (e.g. devkey)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
-                        <input type="password" id="lk-secret" placeholder="API Secret" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-cyan-500 outline-none transition">
-                    </div>
-                    <p class="text-[9px] text-red-400/80 mt-2 font-bold uppercase tracking-wider">Demo Mode: Secrets shared publicly to enable auto-join.</p>
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-slate-700"></div>
+                    <span class="flex-shrink-0 mx-4 text-cyan-500/50 text-xs font-bold tracking-widest uppercase">Live Stations</span>
+                    <div class="flex-grow border-t border-slate-700"></div>
                 </div>
+
+                <div id="stations-list" class="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    <div class="flex justify-center items-center py-6">
+                        <div class="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="ml-3 text-slate-400 text-sm" id="dashboard-status">Waiting for Database connection...</span>
+                    </div>
+                </div>
+
+                <details class="group mt-2">
+                    <summary class="text-xs text-slate-500 hover:text-slate-300 cursor-pointer text-center list-none outline-none transition">Have a private code? Join manually.</summary>
+                    <div class="mt-3 flex gap-2">
+                        <input type="text" id="join-id-input" placeholder="STATION-ID" class="w-full bg-slate-950/50 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500 uppercase font-mono transition">
+                        <button onclick="startListenerManual()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(8,145,178,0.4)]">Join</button>
+                    </div>
+                </details>
             </div>
-
-            <div class="relative flex py-2 items-center">
-                <div class="flex-grow border-t border-slate-700"></div>
-                <span class="flex-shrink-0 mx-4 text-cyan-500/50 text-xs font-bold tracking-widest uppercase">Live Stations</span>
-                <div class="flex-grow border-t border-slate-700"></div>
-            </div>
-
-            <div id="stations-list" class="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                <div class="flex justify-center items-center py-6">
-                    <div class="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span class="ml-3 text-slate-400 text-sm" id="dashboard-status">Scanning frequency...</span>
-                </div>
-            </div>
-
-            <details class="group mt-2">
-                <summary class="text-xs text-slate-500 hover:text-slate-300 cursor-pointer text-center list-none outline-none transition">Have a private code? Join manually.</summary>
-                <div class="mt-3 flex gap-2">
-                    <input type="text" id="join-id-input" placeholder="STATION-ID" class="w-full bg-slate-950/50 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500 uppercase font-mono transition">
-                    <button onclick="startListenerManual()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg text-sm transition shadow-[0_0_15px_rgba(8,145,178,0.4)]">Join</button>
-                </div>
-            </details>
         </div>
     </div>
 
@@ -272,6 +257,23 @@
                     </div>
                     
                     <div id="yt-results-container" class="hidden flex-col gap-1 mb-3 z-10 max-h-40 overflow-y-auto custom-scrollbar bg-slate-900 rounded-lg p-1 border border-slate-700 shadow-xl"></div>
+
+                    <!-- Cloud Saved URLs Integration -->
+                    <div class="flex gap-2 mb-3 z-10">
+                        <input type="text" id="yt-url-input" placeholder="Paste YouTube URL to save to cloud..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition" onkeypress="if(event.key === 'Enter') saveYoutubeUrl()">
+                        <button onclick="saveYoutubeUrl()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1 shadow-sm shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
+                            Save
+                        </button>
+                    </div>
+                    
+                    <div id="cloud-library-container" class="hidden flex-col h-[140px] bg-slate-900/80 rounded-xl border border-slate-800 p-2 mb-4 z-10 shrink-0 shadow-inner overflow-hidden">
+                        <div class="text-[10px] text-slate-400 font-bold uppercase mb-2 px-1 flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                            Cloud Saved Tracks
+                        </div>
+                        <div id="cloud-library-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-1"></div>
+                    </div>
 
                     <!-- DJ YouTube Player Container -->
                     <div id="yt-player-container-dj" class="hidden z-10 w-full mb-3 rounded-lg overflow-hidden border border-slate-800 bg-black h-[180px] shrink-0">
@@ -440,14 +442,15 @@
             </div>
 
             <h2 id="listener-station-display" class="text-3xl font-extrabold text-white mb-1 tracking-tight drop-shadow-lg mt-2">Tuning in...</h2>
-            <p id="listener-status-text" class="text-slate-400 font-medium">Establishing secure peer connection...</p>
+            <p id="listener-status-text" class="text-slate-400 font-medium">Syncing via Firebase...</p>
             
             <!-- Now Playing Marquee -->
-            <div id="now-playing-container" class="mt-4 bg-slate-950/50 border border-slate-800 rounded-full py-1.5 px-4 hidden flex items-center gap-2 max-w-[80%] mx-auto">
+            <div id="now-playing-container" class="mt-4 bg-slate-950/50 border border-slate-800 rounded-full py-1.5 px-3 hidden flex items-center gap-2 max-w-[95%] mx-auto">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white shrink-0 animate-pulse" viewBox="0 0 20 20" fill="currentColor"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" /></svg>
                 <div class="marquee-container w-full text-xs text-white/80 font-medium">
                     <span id="now-playing-text" class="marquee-text">Waiting for DJ...</span>
                 </div>
+                <button id="listener-save-track-btn" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-bold transition-colors shrink-0 shadow-md" onclick="saveCurrentListenerTrack(event)">Save ☁️</button>
             </div>
             
             <div class="relative w-32 h-32 mx-auto mt-6 mb-6 flex items-center justify-center">
@@ -488,10 +491,10 @@
                 <button onclick="sendReaction('🎵')" class="text-2xl hover:scale-125 transition transform hover:-translate-y-2 bg-slate-800 w-12 h-12 rounded-full border border-slate-700 shadow-lg">🎵</button>
             </div>
 
-            <!-- Standard WebRTC Audio Player -->
-            <audio id="audio-player" class="hidden" autoplay></audio>
-            <!-- Hidden YouTube Player for Listeners -->
-            <div id="yt-player-listener" class="hidden"></div>
+            <!-- Hidden YouTube Player for Listeners (MUST NOT be display:none) -->
+            <div class="fixed top-0 left-0 w-[1px] h-[1px] opacity-0 overflow-hidden pointer-events-none z-[-1]">
+                <div id="yt-player-listener"></div>
+            </div>
             
             <!-- Volume & Disconnect -->
             <div class="flex items-center gap-3">
@@ -499,7 +502,7 @@
                     <svg id="listener-vol-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
                 </button>
                 <input type="range" id="listener-vol-slider" class="flex-1 text-slate-300" min="0" max="1" step="0.05" value="1" oninput="updateListenerVolume()">
-                <button onclick="location.reload()" class="bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 font-bold py-3 px-6 rounded-xl transition shadow-md ml-2">
+                <button onclick="leaveStation()" class="bg-red-900/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 font-bold py-3 px-6 rounded-xl transition shadow-md ml-2">
                     LEAVE
                 </button>
             </div>
@@ -508,166 +511,174 @@
 
 <script>
     // --- GLOBAL STATE ---
-    let room = null; // Replaced 'peer' with LiveKit 'room'
-    let localStream = null;
-    let myMicStream = null;
     let myUsername = "Anonymous";
     let globalHypeCount = 0;
+    let lastReactionTs = 0; // Prevents confetti/emojis from firing twice
     
-    // Audio Nodes
+    // Audio Nodes (Local DJ only now)
     let audioCtx = null;
-    let micGainNode = null;
-    let musicGainNode = null;
-    let eqLow = null, eqMid = null, eqHigh = null; 
-    
-    // Mic FX Nodes
-    let micCleanGain = null;
-    let micMegaGain = null;
-    let micSpaceGain = null;
-    let megaFilter1 = null, megaFilter2 = null;
-    let spaceReverb = null;
-
-    let delayNode = null, feedbackNode = null;
-    let monitorGainNode = null; 
     let masterCompressor = null; 
-    let destinationNode = null;
-
     let isMicMuted = false;
     let isDeafened = false; 
-    let listenerCount = 0;
     
     let isBroadcasting = false;
     let myStationId = null;
     let myStationName = "";
     let myStationColor = "#10b981"; 
     
-    // Playlist & Recording State
+    // Playlist State
     let playlist = [];
     let currentTrackIndex = 0;
     let isLooping = false;
-    
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let isRecording = false;
+    let currentListenerTrack = null;
 
-    // --- YOUTUBE API STATE ---
-    const YT_API_KEY = "AIzaSyBFTCtKzfMfpaj3aFjFPLbaysw5atwy_LA";
+    // --- API STATE ---
+    const YT_API_KEY = "AIzaSyBFTCtKzfMfpaj3aFjFPLbaysw5atwy_LA"; // Hardcoded default key
     let djYtPlayer = null;
     let listenerYtPlayer = null;
     let isYtApiReady = false;
-    let djYtEndTimeout = null; // Prevent ad-endings from skipping tracks
+    let djYtEndTimeout = null; 
 
-    // YouTube API callback
+    // New state for Audio Unlocking
+    window.audioUnlocked = false;
+    window.lastTrackCmd = null;
+
     function onYouTubeIframeAPIReady() {
         isYtApiReady = true;
     }
 
-    // --- DASHBOARD LOGIC (MQTT) ---
-    const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
-    const MQTT_TOPIC_PREFIX = 'p2pradio-ultimate/v1/stations/';
-    let mqttClient = null;
-    let activeStations = {};
+    // --- FIREBASE CORE LOGIC ---
+    let fbDb, fbAuth, fbAppId, fbUserId;
+    let currentStationRef = null;
+    let activeChatUnsubscribe = null;
+    let activeStationUnsubscribe = null;
 
+    // We must expose these so our sync logic can use them
+    let fbDoc, fbSetDoc, fbUpdateDoc, fbCollection, fbOnSnapshot, fbAddDoc;
+
+    // Your direct Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC6fcHsdtBCHLWDLKm9yIJokgeoll0i7c0",
+      authDomain: "os-chat-and-phone.firebaseapp.com",
+      databaseURL: "https://os-chat-and-phone-default-rtdb.firebaseio.com",
+      projectId: "os-chat-and-phone",
+      storageBucket: "os-chat-and-phone.firebasestorage.app",
+      messagingSenderId: "177525708536",
+      appId: "1:177525708536:web:0238d2be8837452a214d0d",
+      measurementId: "G-SBKNFS2LRE"
+    };
+
+    async function initFirebaseAndApp() {
+        try {
+            const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
+            const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
+            const { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, arrayUnion, arrayRemove } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
+
+            fbAppId = firebaseConfig.projectId;
+
+            const app = initializeApp(firebaseConfig);
+            fbAuth = getAuth(app);
+            fbDb = getFirestore(app);
+
+            // Export to global for helper functions
+            fbDoc = doc;
+            fbSetDoc = setDoc;
+            fbUpdateDoc = updateDoc;
+            fbCollection = collection;
+            fbOnSnapshot = onSnapshot;
+            fbAddDoc = addDoc;
+            window.fbDeleteDoc = deleteDoc; 
+            window.fbArrayUnion = arrayUnion;
+            window.fbArrayRemove = arrayRemove;
+
+            // RULE 3: Auth First
+            try {
+                await signInAnonymously(fbAuth);
+            } catch(authErr) {
+                console.error("Auth Error:", authErr);
+                document.getElementById('dashboard-status').innerText = "❌ Go to Firebase Console -> Authentication -> Enable 'Anonymous'";
+                return;
+            }
+
+            onAuthStateChanged(fbAuth, (user) => {
+                if (user) {
+                    fbUserId = user.uid;
+                    initDashboard();
+                    loadSavedPlaylist();
+                    loadTotalHearts();
+                    loadUserProfile();
+                }
+            });
+        } catch (error) {
+            console.error("Firebase init failed:", error);
+            document.getElementById('dashboard-status').innerText = "❌ Database Connection Failed. Check console.";
+        }
+    }
+
+    // --- DASHBOARD (Firebase Synced) ---
     function initDashboard() {
         const dashboardStatus = document.getElementById('dashboard-status');
-        mqttClient = mqtt.connect(MQTT_BROKER);
+        const stationsRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations');
 
-        mqttClient.on('connect', () => {
-            dashboardStatus.innerText = 'Network sync complete.';
+        fbOnSnapshot(stationsRef, (snapshot) => {
+            dashboardStatus.innerText = 'Stations synced via Firebase.';
             dashboardStatus.parentElement.querySelector('div').classList.replace('border-cyan-500', 'border-emerald-500');
             dashboardStatus.parentElement.querySelector('div').classList.remove('animate-spin');
-            mqttClient.subscribe(MQTT_TOPIC_PREFIX + '#');
-            renderDashboard();
-        });
+            
+            const list = document.getElementById('stations-list');
+            list.innerHTML = '';
+            
+            let activeStations = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                // Filter out stations inactive for > 2 hours
+                if (Date.now() - data.updatedAt < 2 * 60 * 60 * 1000) {
+                    activeStations.push({ id: doc.id, ...data });
+                }
+            });
 
-        mqttClient.on('message', (topic, message) => {
-            const peerId = topic.replace(MQTT_TOPIC_PREFIX, '');
-            const payload = message.toString();
-
-            if (payload === '') delete activeStations[peerId];
-            else {
-                try {
-                    const data = JSON.parse(payload);
-                    if (Date.now() - data.timestamp < 2 * 60 * 60 * 1000) activeStations[peerId] = data;
-                    else delete activeStations[peerId];
-                } catch(e) {}
+            if (activeStations.length === 0) {
+                list.innerHTML = '<p class="text-slate-500 text-sm text-center py-4">Dead air. Start the first broadcast!</p>';
+                return;
             }
-            renderDashboard();
-        });
-    }
 
-    function renderDashboard() {
-        const list = document.getElementById('stations-list');
-        list.innerHTML = '';
-        const stationsArray = Object.values(activeStations);
+            activeStations.forEach(data => {
+                if (isBroadcasting && data.id === myStationId) return;
 
-        if (stationsArray.length === 0) {
-            list.innerHTML = '<p class="text-slate-500 text-sm text-center py-4">Dead air. Start the first broadcast!</p>';
-            return;
-        }
-
-        stationsArray.sort((a, b) => b.listeners - a.listeners).forEach(data => {
-            if (isBroadcasting && data.peerId === myStationId) return;
-
-            const div = document.createElement('div');
-            const stationColor = data.color || '#06b6d4';
-            div.className = 'bg-slate-900/80 p-3 rounded-xl flex justify-between items-center border border-slate-700 hover:bg-slate-800 cursor-pointer transition group shadow-sm';
-            div.style.borderColor = `rgba(51, 65, 85, 0.5)`;
-            div.onmouseover = () => div.style.borderColor = stationColor;
-            div.onmouseout = () => div.style.borderColor = `rgba(51, 65, 85, 0.5)`;
-            
-            // Pass the LiveKit server credentials attached to the broadcast payload
-            div.onclick = () => startListener(data.peerId, data.name, stationColor, data.lkUrl, data.lkKey, data.lkSecret);
-            
-            div.innerHTML = `
-                <div class="overflow-hidden pr-2 flex items-center gap-3">
-                    <div class="w-3 h-3 rounded-full" style="background-color: ${stationColor}; box-shadow: 0 0 8px ${stationColor}"></div>
-                    <div>
-                        <h4 class="text-white font-bold truncate transition" style="color: ${stationColor}">${escapeHTML(data.name)}</h4>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="flex h-2 w-2 relative">
-                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                              <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                            </span>
-                            <p class="text-[10px] text-slate-400 uppercase tracking-wider">${data.listeners} Listening • Host: ${escapeHTML(data.host || 'DJ')}</p>
+                const div = document.createElement('div');
+                const stationColor = data.color || '#06b6d4';
+                div.className = 'bg-slate-900/80 p-3 rounded-xl flex justify-between items-center border border-slate-700 hover:bg-slate-800 cursor-pointer transition group shadow-sm';
+                div.style.borderColor = `rgba(51, 65, 85, 0.5)`;
+                div.onmouseover = () => div.style.borderColor = stationColor;
+                div.onmouseout = () => div.style.borderColor = `rgba(51, 65, 85, 0.5)`;
+                
+                div.onclick = () => startListener(data.id, data.name, stationColor);
+                
+                div.innerHTML = `
+                    <div class="overflow-hidden pr-2 flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full" style="background-color: ${stationColor}; box-shadow: 0 0 8px ${stationColor}"></div>
+                        <div>
+                            <h4 class="text-white font-bold truncate transition" style="color: ${stationColor}">${escapeHTML(data.name)}</h4>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="flex h-2 w-2 relative">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                </span>
+                                <p class="text-[10px] text-slate-400 uppercase tracking-wider">${data.activeListeners ? data.activeListeners.length : 0} Listening • Host: ${escapeHTML(data.host || 'DJ')}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <button class="bg-slate-800 text-white hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap">
-                    TUNE IN
-                </button>
-            `;
-            list.appendChild(div);
+                    <button class="bg-slate-800 text-white hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap">
+                        TUNE IN
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+        }, (error) => {
+            console.error("Dashboard error:", error);
+            dashboardStatus.innerText = "❌ Go to Firebase Console -> Firestore -> Rules -> Set to 'allow read, write: if true;'";
         });
     }
-
-    function publishStationState() {
-        if (!isBroadcasting || !mqttClient || !myStationId) return;
-        
-        // Grab current credentials to share with listeners
-        const lkUrl = document.getElementById('lk-url').value.trim();
-        const lkKey = document.getElementById('lk-key').value.trim();
-        const lkSecret = document.getElementById('lk-secret').value.trim();
-
-        const payload = JSON.stringify({ 
-            name: myStationName, 
-            host: myUsername,
-            peerId: myStationId, 
-            color: myStationColor,
-            listeners: listenerCount, 
-            timestamp: Date.now(),
-            lkUrl: lkUrl,
-            lkKey: lkKey,
-            lkSecret: lkSecret
-        });
-        mqttClient.publish(MQTT_TOPIC_PREFIX + myStationId, payload, { retain: true });
-    }
-
-    function removeStationState() {
-        if (mqttClient && myStationId) mqttClient.publish(MQTT_TOPIC_PREFIX + myStationId, '', { retain: true });
-    }
-    window.addEventListener('beforeunload', removeStationState);
-    initDashboard();
 
     // --- UI HELPERS ---
     function switchView(viewId) {
@@ -722,16 +733,14 @@
         document.getElementById('playlist-container').classList.add('flex');
 
         if (item instanceof File) {
-            // Pause YouTube and hide container
+            // Local files only play for the DJ in "Just Firebase" mode
             if(djYtPlayer && typeof djYtPlayer.pauseVideo === 'function') djYtPlayer.pauseVideo();
             ytContainer.classList.add('hidden');
             djPlayer.classList.remove('hidden');
-
             djPlayer.src = URL.createObjectURL(item);
             djPlayer.play();
-            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
+            pushSyncStateToFirebase('local', item.name);
         } else if (item.type === 'youtube') {
-            // Pause Local File and show container
             djPlayer.pause();
             djPlayer.classList.add('hidden');
             ytContainer.classList.remove('hidden');
@@ -748,11 +757,9 @@
                         'onStateChange': (event) => {
                             clearTimeout(djYtEndTimeout);
                             if (event.data === YT.PlayerState.ENDED) {
-                                // Wait briefly to verify it's the actual end of the video, not an ad finishing
                                 djYtEndTimeout = setTimeout(() => {
                                     if (djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
                                         const state = djYtPlayer.getPlayerState();
-                                        // Move to next track if it isn't playing/buffering (e.g. state is ENDED or UNSTARTED)
                                         if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
                                             playNextTrack();
                                         }
@@ -762,7 +769,7 @@
                                 onDJPlay();
                             } else if (event.data === YT.PlayerState.PAUSED) {
                                 document.getElementById('vinyl-icon').classList.add('vinyl-paused');
-                                broadcastToListeners({ type: 'yt_cmd', action: 'pause' });
+                                pushSyncStateToFirebase('paused', item.name);
                             }
                         }
                     }
@@ -770,10 +777,9 @@
             } else {
                 djYtPlayer.loadVideoById(item.id);
             }
-            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
-            broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: item.id, time: 0 });
+            // Push initial play command
+            pushSyncStateToFirebase('playing', item.name, item.id, 0);
         }
-        
         renderPlaylist();
     }
 
@@ -781,11 +787,8 @@
         if (playlist.length === 0) return;
         let nextIndex = currentTrackIndex + 1;
         if (nextIndex >= playlist.length) {
-            if (isLooping) {
-                nextIndex = 0;
-            } else {
-                return; // End of playlist
-            }
+            if (isLooping) nextIndex = 0;
+            else return; 
         }
         playTrack(nextIndex);
     }
@@ -794,18 +797,29 @@
         document.getElementById('vinyl-icon').classList.remove('vinyl-paused');
         if (playlist.length > 0) {
             const item = playlist[currentTrackIndex];
-            broadcastToListeners({ type: 'meta', track: item.name, color: myStationColor, hype: globalHypeCount });
-            
             if (item.type === 'youtube' && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
                 try {
                     const vidObj = djYtPlayer.getVideoData();
-                    // Ensure we are playing the requested video ID, preventing broadcast of mid-roll ad times
                     if (vidObj && vidObj.video_id && vidObj.video_id === item.id) {
-                        broadcastToListeners({ type: 'yt_cmd', action: 'play', videoId: vidObj.video_id, time: djYtPlayer.getCurrentTime() });
+                        pushSyncStateToFirebase('playing', item.name, vidObj.video_id, djYtPlayer.getCurrentTime());
                     }
                 } catch(e) {}
             }
         }
+    }
+
+    function pushSyncStateToFirebase(status, trackName, videoId = null, time = 0) {
+        if (!isBroadcasting || !currentStationRef) return;
+        fbUpdateDoc(currentStationRef, {
+            updatedAt: Date.now(),
+            currentTrack: {
+                status: status, // 'playing', 'paused', 'local'
+                title: trackName,
+                videoId: videoId,
+                time: time,
+                timestamp: Date.now()
+            }
+        }).catch(e => console.error(e));
     }
 
     function toggleLoop() {
@@ -840,7 +854,7 @@
             const el = document.createElement('div');
             const isActive = i === currentTrackIndex;
             const isYT = item.type === 'youtube';
-            const icon = isYT ? '📺' : '🎵';
+            const icon = isYT ? '📺' : '🎵 (Local)';
             el.className = `truncate cursor-pointer transition px-3 py-1.5 rounded-lg text-xs font-medium ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 border border-transparent'}`;
             el.innerHTML = isActive ? `<span class="animate-pulse mr-1">▶</span> ${icon} ${escapeHTML(item.name)}` : `<span class="opacity-50">${i + 1}.</span> ${icon} ${escapeHTML(item.name)}`;
             el.onclick = () => playTrack(i);
@@ -858,6 +872,7 @@
         resContainer.classList.add('flex');
 
         try {
+            // Reverted back to direct Google API call
             const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(query)}&key=${YT_API_KEY}`);
             const data = await res.json();
             if(data.items && data.items.length > 0) {
@@ -868,9 +883,12 @@
                     div.className = 'flex items-center gap-2 p-1.5 bg-slate-800/80 hover:bg-slate-700 rounded transition text-xs border border-transparent hover:border-slate-600';
                     
                     div.innerHTML = `
-                        <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-1 rounded text-[10px] shadow-sm font-bold shrink-0 transition-colors">Add to Mix</button>
-                        <img src="${item.snippet.thumbnails.default.url}" class="w-10 h-7 object-cover rounded cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">
-                        <span class="truncate text-slate-200 flex-1 font-medium cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true)">${escapeHTML(item.snippet.title)}</span>
+                        <div class="flex flex-col gap-1 shrink-0 w-16">
+                            <button onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', false, event)" class="bg-indigo-600 hover:bg-indigo-500 text-white py-1 rounded text-[9px] shadow-sm font-bold transition-colors w-full">Queue</button>
+                            <button onclick="saveVideoToCloud('${item.id.videoId}', '${safeTitle}', event)" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[9px] shadow-sm font-bold transition-colors w-full">Save ☁️</button>
+                        </div>
+                        <img src="${item.snippet.thumbnails.default.url}" class="w-10 h-7 object-cover rounded cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true, event)">
+                        <span class="truncate text-slate-200 flex-1 font-medium cursor-pointer" onclick="queueYouTubeVideo('${item.id.videoId}', '${safeTitle}', true, event)">${escapeHTML(item.snippet.title)}</span>
                     `;
                     resContainer.appendChild(div);
                 });
@@ -882,352 +900,258 @@
         }
     }
 
-    // --- AUDIO MIXER & SYNTH FX (DJ) ---
-    function updateMixer() {
-        if (!musicGainNode || !micGainNode || !eqLow || !feedbackNode) return;
+    // --- FIREBASE SAVED PLAYLIST ---
+    async function loadTotalHearts() {
+        if (!fbDb || !fbUserId) return;
+        try {
+            const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
+            window.fbOnSnapshot(profileRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    globalHypeCount = docSnap.data().totalHearts || 0;
+                    updateHypeUI();
+                } else {
+                    // Create empty profile on first load
+                    window.fbSetDoc(profileRef, { totalHearts: 0 });
+                }
+            });
+        } catch(e) { console.error("Error loading hearts", e); }
+    }
 
+    async function loadUserProfile() {
+        if (!fbDb || !fbUserId) return;
+        try {
+            const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'profile');
+            window.fbOnSnapshot(profileRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.username && !document.getElementById('dj-username-input').value) {
+                        document.getElementById('dj-username-input').value = data.username;
+                    }
+                    if (data.color) {
+                        document.getElementById('station-color-input').value = data.color;
+                    }
+                }
+            });
+        } catch(e) { console.error(e); }
+    }
+
+    async function saveUserProfile(username, color) {
+        if (!fbDb || !fbUserId) return;
+        try {
+            const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'profile');
+            await window.fbSetDoc(profileRef, { username, color }, { merge: true });
+        } catch(e) {}
+    }
+
+    function saveCurrentListenerTrack(event) {
+        if (currentListenerTrack && currentListenerTrack.videoId) {
+            saveVideoToCloud(currentListenerTrack.videoId, currentListenerTrack.title, event);
+        }
+    }
+
+    async function saveVideoToCloud(videoId, title, event) {
+        if (event) event.stopPropagation();
+        if (!fbDb || !fbUserId) {
+            alert("Firebase not connected or user not authenticated.");
+            return;
+        }
+        
+        const btn = event ? event.currentTarget : null;
+        if (btn) {
+            btn.innerText = "Saving...";
+            btn.disabled = true;
+        }
+
+        try {
+            const collectionRef = fbCollection(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'saved_yt_urls');
+            await fbAddDoc(collectionRef, {
+                videoId: videoId,
+                title: title,
+                timestamp: Date.now()
+            });
+            
+            if (btn) {
+                btn.innerText = "Saved!";
+                if (btn.classList.contains('bg-emerald-600')) btn.classList.replace('bg-emerald-600', 'bg-emerald-500');
+                if (btn.classList.contains('bg-indigo-600')) btn.classList.replace('bg-indigo-600', 'bg-indigo-500');
+                
+                setTimeout(() => {
+                    btn.innerText = "Save ☁️";
+                    if (btn.classList.contains('bg-emerald-500')) btn.classList.replace('bg-emerald-500', 'bg-emerald-600');
+                    if (btn.classList.contains('bg-indigo-500')) btn.classList.replace('bg-indigo-500', 'bg-indigo-600');
+                    btn.disabled = false;
+                }, 2000);
+            }
+        } catch(e) {
+            console.error("Error saving to Firebase", e);
+            if (btn) {
+                btn.innerText = "Error";
+                setTimeout(() => {
+                    btn.innerText = "Save ☁️";
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+    }
+
+    async function saveYoutubeUrl() {
+        if (!fbDb || !fbUserId) return;
+        const input = document.getElementById('yt-url-input');
+        const url = input.value.trim();
+        if (!url) return;
+
+        const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+        if (!match) { 
+            input.value = '';
+            input.placeholder = "Invalid YouTube URL...";
+            setTimeout(() => input.placeholder = "Paste YouTube URL to save to cloud...", 3000);
+            return; 
+        }
+        
+        const videoId = match[1];
+        const oldText = input.value;
+        input.value = "Saving...";
+        input.disabled = true;
+
+        try {
+            let title = "Saved YouTube Track";
+            try {
+                // Reverted back to direct Google API call
+                const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YT_API_KEY}`);
+                const data = await res.json();
+                if(data.items && data.items.length > 0) title = data.items[0].snippet.title;
+            } catch(e) { console.warn("Failed to get title", e); }
+
+            const collectionRef = fbCollection(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'saved_yt_urls');
+            await fbAddDoc(collectionRef, {
+                videoId: videoId,
+                title: title,
+                timestamp: Date.now()
+            });
+            input.value = '';
+        } catch(e) {
+            console.error("Error saving to Firebase", e);
+            input.value = oldText;
+        } finally {
+            input.disabled = false;
+        }
+    }
+
+    function loadSavedPlaylist() {
+        const collectionRef = fbCollection(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'saved_yt_urls');
+        fbOnSnapshot(collectionRef, (snapshot) => {
+            const listEl = document.getElementById('cloud-library-list');
+            const containerEl = document.getElementById('cloud-library-container');
+            listEl.innerHTML = '';
+            
+            if (snapshot.empty) {
+                containerEl.classList.add('hidden');
+                containerEl.classList.remove('flex');
+                return;
+            }
+            
+            containerEl.classList.remove('hidden');
+            containerEl.classList.add('flex');
+
+            let tracks = [];
+            snapshot.forEach(doc => { tracks.push({ id: doc.id, ...doc.data() }); });
+            tracks.sort((a,b) => a.timestamp - b.timestamp);
+
+            tracks.forEach(track => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-slate-800/80 p-2 rounded text-xs border border-transparent hover:border-slate-600 transition';
+                const safeTitle = escapeHTML(track.title).replace(/'/g, "\\'");
+                
+                div.innerHTML = `
+                    <div class="truncate text-slate-300 flex-1 font-medium cursor-pointer" onclick="queueYouTubeVideo('${track.videoId}', '${safeTitle}', true, event)">
+                        📺 ${escapeHTML(track.title)}
+                    </div>
+                    <div class="flex gap-2 shrink-0 ml-2">
+                        <button onclick="queueYouTubeVideo('${track.videoId}', '${safeTitle}', false, event)" class="text-indigo-400 hover:text-indigo-300 font-bold px-1 transition" title="Add to Queue">+</button>
+                        <button onclick="window.fbDeleteDoc(window.fbDoc(fbDb, 'artifacts', fbAppId, 'users', fbUserId, 'saved_yt_urls', '${track.id}'))" class="text-red-400 hover:text-red-300 font-bold px-1 transition" title="Delete">×</button>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }, (error) => console.error(error));
+    }
+
+    // --- AUDIO MIXER & SYNTH FX (Local DJ Audio Only) ---
+    function updateMixer() {
+        // Reduced to just controlling UI volumes since audioCtx is purely local now
         const musicVol = document.getElementById('music-vol').value;
         const micVol = document.getElementById('mic-vol').value;
-        const echoEnabled = document.getElementById('mic-echo').checked;
-        const micFilter = document.querySelector('input[name="mic-filter"]:checked').value;
-
-        // EQ Values for local files
-        musicGainNode.gain.value = musicVol;
-        micGainNode.gain.value = micVol;
-        
-        eqLow.gain.value = document.getElementById('eq-low').value;
-        eqMid.gain.value = document.getElementById('eq-mid').value;
-        eqHigh.gain.value = document.getElementById('eq-high').value;
-        
-        feedbackNode.gain.value = echoEnabled ? 0.4 : 0; 
-        
-        // Mic FX Routing (dry/wet switching)
-        micCleanGain.gain.value = (micFilter === 'clean') ? 1 : 0;
-        micMegaGain.gain.value = (micFilter === 'mega') ? 1.5 : 0; // boost slightly
-        micSpaceGain.gain.value = (micFilter === 'space') ? 1.2 : 0;
 
         document.getElementById('music-vol-label').innerText = `${Math.round(musicVol * 100)}%`;
         document.getElementById('mic-vol-label').innerText = `${Math.round(micVol * 100)}%`;
 
-        // Update DJ's YouTube iframe volume directly (cannot route it through AudioContext EQ)
         if (djYtPlayer && typeof djYtPlayer.setVolume === 'function') {
             djYtPlayer.setVolume(Math.min(musicVol * 100, 100));
         }
+        
+        const djPlayer = document.getElementById('dj-audio-player');
+        if (djPlayer) djPlayer.volume = Math.min(musicVol, 1);
     }
 
     function playSynthFX(type) {
-        if(!audioCtx || !masterCompressor) return;
-        const now = audioCtx.currentTime;
-
-        if (type === 'laser') {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(880, now);
-            osc.frequency.exponentialRampToValueAtTime(110, now + 0.3);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc.connect(gain); gain.connect(masterCompressor); 
-            osc.start(now); osc.stop(now + 0.3);
-        } 
-        else if (type === 'subdrop') {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.exponentialRampToValueAtTime(0.01, now + 2); 
-            gain.gain.setValueAtTime(1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 2);
-            osc.connect(gain); gain.connect(masterCompressor);
-            osc.start(now); osc.stop(now + 2);
-        }
-        else if (type === 'airhorn') {
-            const freqs = [350, 360, 370]; 
-            freqs.forEach(f => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.value = f;
-                gain.gain.setValueAtTime(0, now);
-                gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
-                gain.gain.setValueAtTime(0.2, now + 0.3);
-                gain.gain.linearRampToValueAtTime(0, now + 0.4);
-                osc.connect(gain); gain.connect(masterCompressor);
-                osc.start(now); osc.stop(now + 0.5);
-            });
-        }
-        else if (type === 'applause') {
-            const bufferSize = audioCtx.sampleRate * 2; 
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1; // White noise
-            
-            const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
-            
-            const bandpass = audioCtx.createBiquadFilter();
-            bandpass.type = 'bandpass';
-            bandpass.frequency.value = 1000;
-            
-            const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.4, now + 0.2);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 2);
-            
-            noise.connect(bandpass); bandpass.connect(gain); gain.connect(masterCompressor);
-            noise.start(now);
-        }
-        else if (type === 'magic') {
-            const notes = [440, 554.37, 659.25, 880, 1108.73, 1318.51]; // A major arpeggio
-            notes.forEach((freq, i) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.value = freq;
-                
-                const startTime = now + (i * 0.1);
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(0.15, startTime + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 1.5);
-                
-                osc.connect(gain); gain.connect(masterCompressor);
-                osc.start(startTime); osc.stop(startTime + 1.5);
-            });
-        }
+        // Disabled Web Audio API synths in Firebase Sync mode to simplify architecture
+        // A full implementation would pre-render synths as MP3s to play locally.
+        alert("Synths disabled in Firebase Cloud Sync mode.");
     }
-
-    // Creating Impulse Response for Reverb
-    function createReverbIR(ctx) {
-        let rate = ctx.sampleRate, length = rate * 2;
-        let impulse = ctx.createBuffer(2, length, rate);
-        let l = impulse.getChannelData(0), r = impulse.getChannelData(1);
-        for (let i = 0; i < length; i++) {
-            let n = i / length; 
-            l[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, 2);
-            r[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, 2);
-        }
-        return impulse;
-    }
-
-    // --- LIVE RECORDING LOGIC ---
+    
     function toggleRecording() {
-        const btn = document.getElementById('record-btn');
-        const dot = document.getElementById('record-dot');
-        const text = document.getElementById('record-text');
-
-        if (!isRecording) {
-            try {
-                const options = { mimeType: 'audio/webm;codecs=opus' };
-                mediaRecorder = new MediaRecorder(localStream, options);
-                mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = `${myStationName.replace(/\s+/g, '_')}_Session_${new Date().toISOString().slice(0,10)}.webm`;
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-                    recordedChunks = [];
-                };
-                mediaRecorder.start();
-                isRecording = true;
-                
-                btn.classList.add('bg-red-900/30', 'border-red-500/50', 'text-red-400');
-                btn.classList.remove('bg-slate-800', 'border-slate-600', 'text-slate-300');
-                dot.classList.add('bg-red-500', 'recording-pulse');
-                dot.classList.remove('bg-slate-500');
-                text.innerText = "REC";
-            } catch (err) { alert("Failed to start recording: " + err.message); }
-        } else {
-            if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-            isRecording = false;
-            
-            btn.classList.remove('bg-red-900/30', 'border-red-500/50', 'text-red-400');
-            btn.classList.add('bg-slate-800', 'border-slate-600', 'text-slate-300');
-            dot.classList.remove('bg-red-500', 'recording-pulse');
-            dot.classList.add('bg-slate-500');
-            text.innerText = "RECORD";
-        }
+        alert("Recording unavailable in Cloud Sync mode.");
     }
 
-
-    // --- CHAT & DATA NETWORK LOGIC ---
+    // --- CHAT LOGIC ---
     function handleChatEnter(e, role) {
         if (e.key === 'Enter') sendChatMessage(role);
     }
 
-    function sendChatMessage(role) {
+    async function sendChatMessage(role) {
         const inputId = role === 'dj' ? 'dj-chat-input' : 'listener-chat-input';
         const input = document.getElementById(inputId);
         const text = input.value.trim();
-        if (!text) return;
+        if (!text || !myStationId) return;
 
-        const payload = { type: 'chat', sender: myUsername, text: text, color: myStationColor };
-        
-        // With an SFU, you don't display your own message manually, you let the server echo it back to you.
-        // But for UI snappiness, we display it immediately.
-        displayChatMessage(payload.sender, payload.text, role, payload.color);
         input.value = '';
-
-        broadcastToListeners(payload);
+        
+        try {
+            const chatRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'chat_' + myStationId);
+            await fbAddDoc(chatRef, {
+                sender: myUsername,
+                text: text,
+                color: myStationColor,
+                timestamp: Date.now()
+            });
+        } catch(e) { console.error("Chat send failed", e); }
     }
 
-    function displayChatMessage(sender, text, role, colorCode = '#10b981') {
+    function renderChatWindow(msgs, role) {
         const containerId = role === 'dj' ? 'dj-chat-messages' : 'listener-chat-messages';
         const container = document.getElementById(containerId);
+        container.innerHTML = '<div class="text-slate-500 text-xs text-center italic mt-auto pb-2">Chat room open. Say hi!</div>';
         
-        const div = document.createElement('div');
-        div.className = 'chat-msg flex flex-col mb-1';
-        
-        const isMe = sender === myUsername;
-        const nameDisplay = isMe ? 'You' : escapeHTML(sender);
-        let nameStyle = isMe ? 'color: #38bdf8;' : `color: ${colorCode};`; 
+        msgs.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = 'chat-msg flex flex-col mb-1';
+            
+            const isMe = msg.sender === myUsername;
+            const nameDisplay = isMe ? 'You' : escapeHTML(msg.sender);
+            let nameStyle = isMe ? 'color: #38bdf8;' : `color: ${msg.color || '#10b981'};`; 
 
-        div.innerHTML = `
-            <span style="${nameStyle}" class="font-bold text-[10px] uppercase tracking-wider">${nameDisplay}</span>
-            <span class="text-slate-200">${escapeHTML(text)}</span>
-        `;
-        
-        container.appendChild(div);
+            div.innerHTML = `
+                <span style="${nameStyle}" class="font-bold text-[10px] uppercase tracking-wider">${nameDisplay}</span>
+                <span class="text-slate-200">${escapeHTML(msg.text)}</span>
+            `;
+            container.appendChild(div);
+        });
         container.scrollTop = container.scrollHeight;
-    }
-
-    function broadcastToListeners(dataObj) {
-        if (!room || room.state !== 'connected') return;
-        const str = JSON.stringify(dataObj);
-        const encoded = new TextEncoder().encode(str);
-        room.localParticipant.publishData(encoded, { reliable: true });
-    }
-
-    function handleDataFromPeer(data) {
-        if (data.type === 'reaction') {
-            if(data.emoji === '🎉') fireConfetti();
-            else showFloatingEmoji(data.emoji);
-            
-            if(data.emoji === '💖') {
-                globalHypeCount++;
-                updateHypeUI();
-            }
-        } else if (data.type === 'chat') {
-            // Ignore echoes of our own messages
-            if (data.sender !== myUsername) {
-                displayChatMessage(data.sender, data.text, isBroadcasting ? 'dj' : 'listener', data.color);
-            }
-        } else if (data.type === 'meta' && !isBroadcasting) {
-            document.getElementById('now-playing-container').classList.remove('hidden');
-            document.getElementById('now-playing-text').innerText = data.track;
-            if(data.color) applyThemeColorToListener(data.color);
-            if(data.hype !== undefined) {
-                globalHypeCount = data.hype;
-                updateHypeUI();
-            }
-        } else if (data.type === 'confetti') {
-            fireConfetti();
-        } else if (data.type === 'yt_cmd' && !isBroadcasting) {
-            // LISTENER SIDE: Execute YouTube sync commands from the DJ
-            
-            // Queue the command if the player is still initializing to prevent iframe crashes
-            if(!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
-                if (data.action === 'play' || data.action === 'sync') {
-                    window.queuedYtCmd = data;
-                }
-                return;
-            }
-            
-            try {
-                const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
-                
-                if (data.action === 'play' || data.action === 'sync') {
-                    // Always ensure unmuted when DJ plays
-                    if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
-                    if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
-
-                    if (currentData.video_id !== data.videoId) {
-                         listenerYtPlayer.loadVideoById(data.videoId, data.time || 0);
-                         
-                         // Force playback if browser stalls the video load/autoplay
-                         setTimeout(() => {
-                             if(listenerYtPlayer && typeof listenerYtPlayer.getPlayerState === 'function') {
-                                 const state = listenerYtPlayer.getPlayerState();
-                                 if(state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED) {
-                                     listenerYtPlayer.playVideo();
-                                 }
-                             }
-                         }, 1500);
-                    } else {
-                         if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING && data.action === 'play') {
-                             listenerYtPlayer.playVideo();
-                         }
-                         
-                         if(data.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
-                             const current = listenerYtPlayer.getCurrentTime();
-                             const diff = current - data.time;
-                             
-                             // Check if out of sync by more than 4 seconds
-                             if(Math.abs(diff) > 4) {
-                                 if (data.action === 'sync') {
-                                     // For routine syncs: ONLY force a skip forward if listener is lagging behind.
-                                     if (diff < -5) {
-                                         listenerYtPlayer.seekTo(data.time);
-                                     }
-                                 } else if (data.action === 'play') {
-                                     // Protection against the "ad finishes -> song resets to 0:00" symptom.
-                                     if (!(data.time < 2 && current > 10)) {
-                                         listenerYtPlayer.seekTo(data.time);
-                                     }
-                                 }
-                             }
-                         }
-                    }
-                } else if (data.action === 'pause') {
-                    if(typeof listenerYtPlayer.pauseVideo === 'function') {
-                        listenerYtPlayer.pauseVideo();
-                    }
-                }
-            } catch(e) {
-                console.warn("YT Sync Error", e);
-            }
-        }
-    }
-
-    function updateHypeUI() {
-        if(document.getElementById('dj-hype-count')) document.getElementById('dj-hype-count').innerText = globalHypeCount;
-        if(document.getElementById('listener-hype-count')) document.getElementById('listener-hype-count').innerText = globalHypeCount;
-    }
-
-    // --- LIVEKIT JWT HELPER ---
-    function generateLiveKitToken(apiKey, apiSecret, roomName, participantName, isHost) {
-        const header = { alg: "HS256", typ: "JWT" };
-        const now = Math.floor(Date.now() / 1000);
-        const payload = {
-            iss: apiKey,
-            nbf: now,
-            exp: now + (12 * 60 * 60), // 12 hours
-            sub: participantName,
-            video: {
-                roomJoin: true,
-                room: roomName,
-                canPublish: isHost,
-                canPublishData: true,
-                canSubscribe: true
-            }
-        };
-        return KJUR.jws.JWS.sign("HS256", JSON.stringify(header), JSON.stringify(payload), {utf8: apiSecret});
     }
 
     // --- BROADCASTER (DJ) LOGIC ---
     async function startBroadcaster() {
-        const lkUrl = document.getElementById('lk-url').value.trim();
-        const lkKey = document.getElementById('lk-key').value.trim();
-        const lkSecret = document.getElementById('lk-secret').value.trim();
-
-        if (!lkUrl || !lkKey || !lkSecret) {
-            alert("SFU Architecture requires a LiveKit Server URL, API Key, and Secret.");
-            return;
-        }
+        if(!fbDb) { alert("Firebase not initialized yet. Please wait."); return; }
 
         const nameInput = document.getElementById('station-name-input').value.trim();
         const userInp = document.getElementById('dj-username-input').value.trim();
@@ -1237,240 +1161,137 @@
         myUsername = userInp || "DJ Host";
         myStationId = 'STN-' + Math.random().toString(36).substr(2, 6).toUpperCase();
 
+        saveUserProfile(myUsername, myStationColor);
+
         switchView('dj-view');
         document.getElementById('dj-station-name').innerText = myStationName;
         document.getElementById('dj-station-name').style.color = myStationColor;
+        document.getElementById('station-id-display').innerText = myStationId;
 
-        try {
-            const micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
-            myMicStream = micStream;
+        // Create the Room in Firebase with the DJ's lifetime hearts
+        currentStationRef = fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', myStationId);
+        await fbSetDoc(currentStationRef, {
+            name: myStationName,
+            host: myUsername,
+            color: myStationColor,
+            hype: globalHypeCount,
+            activeListeners: [],
+            updatedAt: Date.now(),
+            currentTrack: null
+        });
 
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            destinationNode = audioCtx.createMediaStreamDestination();
-            
-            // Nodes Creation
-            micGainNode = audioCtx.createGain();
-            musicGainNode = audioCtx.createGain();
-            monitorGainNode = audioCtx.createGain();
-            
-            // Mic Filters
-            micCleanGain = audioCtx.createGain(); 
-            micMegaGain = audioCtx.createGain();
-            micSpaceGain = audioCtx.createGain();
-            
-            megaFilter1 = audioCtx.createBiquadFilter();
-            megaFilter1.type = 'highpass';
-            megaFilter1.frequency.value = 500;
-            megaFilter2 = audioCtx.createBiquadFilter();
-            megaFilter2.type = 'lowpass';
-            megaFilter2.frequency.value = 2500;
-            
-            spaceReverb = audioCtx.createConvolver();
-            spaceReverb.buffer = createReverbIR(audioCtx);
+        isBroadcasting = true;
 
-            // 3-Band EQ
-            eqLow = audioCtx.createBiquadFilter(); eqLow.type = 'lowshelf'; eqLow.frequency.value = 250;
-            eqMid = audioCtx.createBiquadFilter(); eqMid.type = 'peaking'; eqMid.frequency.value = 1000; eqMid.Q.value = 1;
-            eqHigh = audioCtx.createBiquadFilter(); eqHigh.type = 'highshelf'; eqHigh.frequency.value = 4000;
-
-            delayNode = audioCtx.createDelay(1.0); 
-            feedbackNode = audioCtx.createGain();
+        // Periodic Sync Loop (Heartbeat)
+        setInterval(() => {
+            if (!isBroadcasting || !currentStationRef) return;
             
-            // ANTI-CLIPPING COMPRESSOR
-            masterCompressor = audioCtx.createDynamicsCompressor();
-            masterCompressor.threshold.value = -3; 
-            masterCompressor.knee.value = 10;
-            masterCompressor.ratio.value = 12; 
-            masterCompressor.attack.value = 0.005; 
-            masterCompressor.release.value = 0.1;
-            
-            delayNode.delayTime.value = 0.25; 
-            feedbackNode.gain.value = 0; 
-            
-            // --- MIC ROUTING ---
-            const micSource = audioCtx.createMediaStreamSource(micStream);
-            
-            // Split mic to filters
-            micSource.connect(micCleanGain);
-            
-            micSource.connect(megaFilter1);
-            megaFilter1.connect(megaFilter2);
-            megaFilter2.connect(micMegaGain);
-            
-            micSource.connect(spaceReverb);
-            spaceReverb.connect(micSpaceGain);
-            
-            // Combine filters to main mic gain
-            micCleanGain.connect(micGainNode);
-            micMegaGain.connect(micGainNode);
-            micSpaceGain.connect(micGainNode);
-            
-            // Mic Delay Loop
-            micGainNode.connect(delayNode);
-            delayNode.connect(feedbackNode);
-            feedbackNode.connect(delayNode);
-            
-            // Mix to Master
-            micGainNode.connect(masterCompressor);
-            delayNode.connect(masterCompressor);
-            
-            // --- MUSIC ROUTING (Local files only) ---
-            const djPlayer = document.getElementById('dj-audio-player');
-            const musicSource = audioCtx.createMediaElementSource(djPlayer);
-            musicSource.connect(musicGainNode);
-            musicGainNode.connect(eqLow);
-            eqLow.connect(eqMid);
-            eqMid.connect(eqHigh);
-            eqHigh.connect(masterCompressor);
-            
-            // Master Out
-            masterCompressor.connect(destinationNode);
-            masterCompressor.connect(monitorGainNode);
-            monitorGainNode.connect(audioCtx.destination); 
-
-            updateMixer(); 
-
-            djPlayer.addEventListener('ended', () => {
-                playNextTrack();
-            });
-
-            localStream = destinationNode.stream;
-            setupVisualizer(localStream, 'dj-visualizer', myStationColor, true);
-            
-            // Connect to LiveKit SFU Server
-            document.getElementById('station-id-display').innerText = 'CONNECTING...';
-            
-            const token = generateLiveKitToken(lkKey, lkSecret, myStationId, myUsername, true);
-            
-            room = new LivekitClient.Room({
-                adaptiveStream: false,
-                dynacast: false,
-            });
-
-            // Listen for changes in listener count from the SFU
-            room.on('participantConnected', () => { listenerCount = room.participants.size; updateListenerCount(); });
-            room.on('participantDisconnected', () => { listenerCount = room.participants.size; updateListenerCount(); });
-
-            // Handle incoming Data/Chat from listeners
-            room.on('dataReceived', (payload) => {
-                const data = JSON.parse(new TextDecoder().decode(payload));
-                handleDataFromPeer(data);
-            });
-
-            await room.connect(lkUrl, token);
-            
-            isBroadcasting = true;
-            document.getElementById('station-id-display').innerText = myStationId;
-            publishStationState();
-            setInterval(publishStationState, 30000);
-
-            // Publish Master Audio Track to the Server (Only uploads ONCE, regardless of listener count!)
-            const localAudioTrack = localStream.getAudioTracks()[0];
-            await room.localParticipant.publishTrack(localAudioTrack, {
-                name: 'master-audio',
-                source: LivekitClient.Track.Source.Microphone,
-                simulcast: false,
-            });
-
-            // Periodically sync YouTube time with all listeners to ensure nobody drifts
-            setInterval(() => {
-                if (isBroadcasting && playlist.length > 0 && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function' && djYtPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-                    try {
-                        const item = playlist[currentTrackIndex];
-                        const vidObj = djYtPlayer.getVideoData();
-                        // Only broadcast sync if the correct video is verified (protects against broadcasting mid-roll ad times)
-                        if(vidObj && vidObj.video_id && vidObj.video_id === item.id) {
-                            broadcastToListeners({ 
-                                type: 'yt_cmd', 
-                                action: 'sync', 
-                                videoId: vidObj.video_id, 
-                                time: djYtPlayer.getCurrentTime() 
-                            });
-                        }
-                    } catch(e) {}
+            let trackData = null;
+            if (playlist.length > 0 && playlist[currentTrackIndex].type === 'youtube' && djYtPlayer && typeof djYtPlayer.getPlayerState === 'function') {
+                const state = djYtPlayer.getPlayerState();
+                if (state === YT.PlayerState.PLAYING) {
+                     const vidObj = djYtPlayer.getVideoData();
+                     if (vidObj && vidObj.video_id) {
+                         trackData = {
+                             status: 'playing',
+                             title: playlist[currentTrackIndex].name,
+                             videoId: vidObj.video_id,
+                             time: djYtPlayer.getCurrentTime(),
+                             timestamp: Date.now()
+                         };
+                     }
                 }
-            }, 4000);
+            }
+            
+            // Just update timestamp to keep room alive, and time if playing
+            const updateObj = { updatedAt: Date.now() };
+            if (trackData) updateObj.currentTrack = trackData;
+            
+            fbUpdateDoc(currentStationRef, updateObj).catch(e => console.error(e));
+            
+        }, 4000);
 
-        } catch (err) {
-            alert("Mic access required to broadcast! " + err.message);
-            location.reload();
-        }
+        // Listen to Chat
+        const chatRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'chat_' + myStationId);
+        activeChatUnsubscribe = fbOnSnapshot(chatRef, (snapshot) => {
+            const msgs = [];
+            snapshot.forEach(doc => msgs.push(doc.data()));
+            msgs.sort((a,b) => a.timestamp - b.timestamp);
+            renderChatWindow(msgs, 'dj');
+        });
+        
+        // Listen to Reactions / Hype (since listeners write to the doc directly)
+        activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
+            if(docSnap.exists()) {
+                const data = docSnap.data();
+                
+                // Update live listener count
+                document.getElementById('listener-count').innerText = data.activeListeners ? data.activeListeners.length : 0;
+                
+                // If listeners increased the hype, save it to the DJ's permanent profile
+                if (data.hype > globalHypeCount) {
+                    globalHypeCount = data.hype;
+                    const profileRef = window.fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'dj_profiles', fbUserId);
+                    window.fbUpdateDoc(profileRef, { totalHearts: globalHypeCount }).catch(e => console.error(e));
+                }
+                
+                globalHypeCount = data.hype || globalHypeCount;
+                updateHypeUI();
+                
+                // Fire Reactions & Confetti (Protected from duplicate triggers)
+                if (data.latestReaction && data.latestReaction.ts > lastReactionTs) {
+                     lastReactionTs = data.latestReaction.ts;
+                     if(data.latestReaction.emoji === '🎉') fireConfetti();
+                     else showFloatingEmoji(data.latestReaction.emoji);
+                }
+            }
+        });
     }
 
     function toggleMute() {
-        if (!myMicStream) return;
-        isMicMuted = !isMicMuted;
-        myMicStream.getAudioTracks()[0].enabled = !isMicMuted;
-        
-        const btn = document.getElementById('mute-mic-btn');
-        document.getElementById('mic-icon-on').classList.toggle('hidden', isMicMuted);
-        document.getElementById('mic-icon-off').classList.toggle('hidden', !isMicMuted);
-        
-        if (isMicMuted) {
-            btn.classList.add('bg-red-900/30', 'border-red-500/50');
-            btn.classList.remove('bg-slate-800', 'border-slate-700');
-        } else {
-            btn.classList.remove('bg-red-900/30', 'border-red-500/50');
-            btn.classList.add('bg-slate-800', 'border-slate-700');
-        }
+        alert("Mic disabled in Firebase Sync mode.");
     }
 
     function toggleDeafen() {
-        if (!monitorGainNode) return;
-        isDeafened = !isDeafened;
-        monitorGainNode.gain.value = isDeafened ? 0 : 1;
-        
-        const btn = document.getElementById('deafen-btn');
-        document.getElementById('deafen-icon-off').classList.toggle('hidden', isDeafened);
-        document.getElementById('deafen-icon-on').classList.toggle('hidden', !isDeafened);
-
-        if (isDeafened) {
-            btn.classList.add('bg-orange-900/30', 'border-orange-500/50');
-            btn.classList.remove('bg-slate-800', 'border-slate-700');
-        } else {
-            btn.classList.remove('bg-orange-900/30', 'border-orange-500/50');
-            btn.classList.add('bg-slate-800', 'border-slate-700');
-        }
+        alert("Monitor deafen disabled in Firebase Sync mode.");
     }
 
     function endBroadcast() {
-        if(isRecording) toggleRecording(); 
-        if (room) room.disconnect();
-        removeStationState();
-        setTimeout(() => location.reload(), 300); 
-    }
-
-    function updateListenerCount() {
-        document.getElementById('listener-count').innerText = listenerCount;
-        publishStationState();
+        if(currentStationRef) {
+            window.fbDeleteDoc(currentStationRef).finally(() => location.reload());
+        } else {
+            location.reload();
+        }
     }
 
     // --- LISTENER LOGIC ---
     function startListenerManual() {
         let stationId = document.getElementById('join-id-input').value.trim().toUpperCase();
-        const lkUrl = document.getElementById('lk-url').value.trim();
-        const lkKey = document.getElementById('lk-key').value.trim();
-        const lkSecret = document.getElementById('lk-secret').value.trim();
-        if (stationId && lkUrl) startListener(stationId, "Private Station", "#06b6d4", lkUrl, lkKey, lkSecret);
+        if (stationId) startListener(stationId, "Private Station", "#06b6d4");
     }
 
-    async function startListener(stationId, stationName, themeColor, lkUrl, lkKey, lkSecret) {
-        if (!lkUrl) { alert("This station is missing LiveKit configuration."); return; }
-        
+    async function startListener(stationId, stationName, themeColor) {
+        if(!fbDb) { alert("Firebase not initialized yet. Please wait."); return; }
+
         const userInp = document.getElementById('dj-username-input').value.trim();
         myUsername = userInp || "Listener_" + Math.floor(Math.random() * 1000);
         myStationColor = themeColor; 
+        myStationId = stationId;
 
-        if (mqttClient) mqttClient.end(); 
+        // We use the "TUNE IN" button click to instantly unlock the audio context!
+        window.audioUnlocked = true;
+        window.lastTrackCmd = null;
+
+        saveUserProfile(myUsername, document.getElementById('station-color-input').value);
 
         switchView('listener-view');
         document.getElementById('listener-station-display').innerText = stationName;
         applyThemeColorToListener(themeColor);
 
-        // FIX 2: Bulletproof YouTube Initialization (Waits recursively if Google scripts are slow)
+        // Initialize Listener YouTube Player
         function initRobustYTPlayer() {
             if (!isYtApiReady) {
-                setTimeout(initRobustYTPlayer, 500); // Try again in half a second
+                setTimeout(initRobustYTPlayer, 500); 
                 return;
             }
             if (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
@@ -1480,15 +1301,19 @@
                         playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
                         events: { 
                             'onReady': (e) => { 
-                                e.target.mute(); 
-                                if (window.queuedYtCmd) {
+                                // Auto-unmute since the user just clicked "Tune In"
+                                if (window.audioUnlocked) {
                                     e.target.unMute();
                                     e.target.setVolume(document.getElementById('listener-vol-slider').value * 100);
+                                } else {
+                                    e.target.mute(); 
+                                }
+                                
+                                if (window.queuedYtCmd && window.audioUnlocked) {
                                     e.target.loadVideoById(window.queuedYtCmd.videoId, window.queuedYtCmd.time || 0);
                                     window.queuedYtCmd = null;
                                 }
-                            },
-                            'onError': (e) => console.warn("Recoverable YT Error", e)
+                            }
                         }
                     });
                 } catch(err) { console.error("YT Boot Failed", err); }
@@ -1496,51 +1321,144 @@
         }
         initRobustYTPlayer();
 
-        document.getElementById('listener-status-text').innerText = "Connecting to SFU Server...";
+        // Subscribe to Station Document
+        currentStationRef = fbDoc(fbDb, 'artifacts', fbAppId, 'public', 'data', 'stations', stationId);
+        
+        // Add ourselves to the active listeners list
+        fbUpdateDoc(currentStationRef, {
+            activeListeners: window.fbArrayUnion(fbUserId)
+        }).catch(e => console.error(e));
 
-        const token = generateLiveKitToken(lkKey, lkSecret, stationId, myUsername, false);
-        room = new LivekitClient.Room();
-
-        room.on('disconnected', () => {
-            setListenerStateOff();
-            document.getElementById('listener-status-text').innerText = "Broadcast Ended or Disconnected.";
-        });
-
-        // When the DJ's audio track arrives from the server
-        room.on('trackSubscribed', (track) => {
-            if (track.kind === 'audio') {
-                const audioPlayer = document.getElementById('audio-player');
-                track.attach(audioPlayer);
-                
-                audioPlayer.play().then(() => {
-                    setListenerStateLive();
-                    // Convert the LiveKit track back to a MediaStream for the visualizer
-                    const stream = new MediaStream([track.mediaStreamTrack]);
-                    setupVisualizer(stream, 'listener-visualizer', myStationColor, false); 
-                }).catch(e => {
-                    document.getElementById('listener-status-text').innerText = "Tap icon to start audio";
-                    document.getElementById('listener-status-icon').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 cursor-pointer hover:scale-110 transition" style="color: ${myStationColor}" viewBox="0 0 20 20" fill="currentColor" onclick="document.getElementById('audio-player').play(); if(listenerYtPlayer && typeof listenerYtPlayer.unMute === 'function'){listenerYtPlayer.unMute(); listenerYtPlayer.playVideo();} setListenerStateLive();"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
-                });
+        // Cleanly remove ourselves when closing the tab
+        window.addEventListener('beforeunload', () => {
+            if (currentStationRef && fbUserId) {
+                fbUpdateDoc(currentStationRef, { activeListeners: window.fbArrayRemove(fbUserId) }).catch(()=>{});
             }
         });
 
-        // Handle incoming sync/chat data from the server
-        room.on('dataReceived', (payload) => {
-            const data = JSON.parse(new TextDecoder().decode(payload));
-            handleDataFromPeer(data);
+        activeStationUnsubscribe = fbOnSnapshot(currentStationRef, (docSnap) => {
+            if (!docSnap.exists()) {
+                setListenerStateOff();
+                return;
+            }
+            const data = docSnap.data();
+            
+            if (!window.audioUnlocked) {
+                setListenerStateWaiting();
+            } else {
+                setListenerStateLive();
+            }
+            
+            // Sync Hype & Reactions
+            globalHypeCount = data.hype || 0;
+            updateHypeUI();
+            
+            // Fire Reactions & Confetti (Protected from duplicate triggers)
+            if (data.latestReaction && data.latestReaction.ts > lastReactionTs) {
+                 lastReactionTs = data.latestReaction.ts;
+                 if(data.latestReaction.emoji === '🎉') fireConfetti();
+                 else showFloatingEmoji(data.latestReaction.emoji);
+            }
+            
+            // Sync YouTube
+            if (data.currentTrack) {
+                document.getElementById('now-playing-container').classList.remove('hidden');
+                document.getElementById('now-playing-text').innerText = data.currentTrack.title + (data.currentTrack.status === 'local' ? ' (Host Local File)' : '');
+                
+                if (data.currentTrack.status !== 'local' && data.currentTrack.videoId) {
+                    currentListenerTrack = data.currentTrack;
+                    document.getElementById('listener-save-track-btn').classList.remove('hidden');
+                } else {
+                    currentListenerTrack = null;
+                    document.getElementById('listener-save-track-btn').classList.add('hidden');
+                }
+
+                if (data.currentTrack.status === 'local') {
+                    if (listenerYtPlayer && typeof listenerYtPlayer.pauseVideo === 'function') listenerYtPlayer.pauseVideo();
+                } else {
+                    syncListenerYT(data.currentTrack);
+                }
+            }
         });
 
-        try {
-            await room.connect(lkUrl, token);
-            document.getElementById('listener-status-text').innerText = "Buffering Audio Stream...";
-            
-            // Announce presence
-            const announce = JSON.stringify({ type: 'chat', sender: 'System', text: `${myUsername} tuned in.`});
-            room.localParticipant.publishData(new TextEncoder().encode(announce), { reliable: true });
-        } catch (e) {
-            setListenerStateOff();
-            document.getElementById('listener-status-text').innerText = "Failed to connect to SFU.";
+        // Subscribe to Chat
+        const chatRef = fbCollection(fbDb, 'artifacts', fbAppId, 'public', 'data', 'chat_' + stationId);
+        activeChatUnsubscribe = fbOnSnapshot(chatRef, (snapshot) => {
+            const msgs = [];
+            snapshot.forEach(doc => msgs.push(doc.data()));
+            msgs.sort((a,b) => a.timestamp - b.timestamp);
+            renderChatWindow(msgs, 'listener');
+        });
+        
+        // Announce join
+        sendChatMessage('listener'); 
+    }
+    
+    function leaveStation() {
+        if (currentStationRef && fbUserId) {
+            fbUpdateDoc(currentStationRef, { 
+                activeListeners: window.fbArrayRemove(fbUserId) 
+            }).then(() => location.reload()).catch(() => location.reload());
+        } else {
+            location.reload();
         }
+    }
+
+    function syncListenerYT(trackCmd) {
+        window.lastTrackCmd = trackCmd;
+        if (!window.audioUnlocked) return;
+
+        if(!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
+            window.queuedYtCmd = trackCmd;
+            return;
+        }
+        
+        try {
+            const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
+            
+            if (trackCmd.status === 'playing') {
+                if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
+                if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
+
+                if (currentData.video_id !== trackCmd.videoId) {
+                     listenerYtPlayer.loadVideoById(trackCmd.videoId, trackCmd.time || 0);
+                     
+                     // Force playback if browser stalls
+                     setTimeout(() => {
+                         if(listenerYtPlayer && typeof listenerYtPlayer.getPlayerState === 'function') {
+                             const state = listenerYtPlayer.getPlayerState();
+                             if(state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED) {
+                                 listenerYtPlayer.playVideo();
+                             }
+                         }
+                     }, 1500);
+                } else {
+                     if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                         listenerYtPlayer.playVideo();
+                     }
+                     
+                     if(trackCmd.time !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
+                         // Calculate expected time based on when the DJ sent the heartbeat vs now
+                         const latencyAdj = (Date.now() - trackCmd.timestamp) / 1000;
+                         const expectedTime = trackCmd.time + (latencyAdj > 0 && latencyAdj < 10 ? latencyAdj : 0);
+                         
+                         const current = listenerYtPlayer.getCurrentTime();
+                         const diff = current - expectedTime;
+                         
+                         // Check if out of sync by more than 4 seconds
+                         if(Math.abs(diff) > 4) {
+                             if (!(trackCmd.time < 2 && current > 10)) { // Ad protection
+                                 listenerYtPlayer.seekTo(expectedTime);
+                             }
+                         }
+                     }
+                }
+            } else if (trackCmd.status === 'paused') {
+                if(typeof listenerYtPlayer.pauseVideo === 'function') {
+                    listenerYtPlayer.pauseVideo();
+                }
+            }
+        } catch(e) { console.warn("YT Sync Error", e); }
     }
 
     function applyThemeColorToListener(hexColor) {
@@ -1548,46 +1466,74 @@
         document.getElementById('listener-glow-1').style.backgroundColor = hexColor;
         document.getElementById('listener-glow-2').style.backgroundColor = hexColor; 
         document.getElementById('listener-send-btn').style.backgroundColor = hexColor;
-        window.currentVisualizerColor = hexColor;
     }
 
     function toggleListenerDeafen() {
-        const player = document.getElementById('audio-player');
-        player.muted = !player.muted;
-        const btn = document.getElementById('listener-deafen-btn');
-        const icon = document.getElementById('listener-vol-icon');
-        const slider = document.getElementById('listener-vol-slider');
+        if(listenerYtPlayer && typeof listenerYtPlayer.isMuted === 'function') {
+            const isMuted = listenerYtPlayer.isMuted();
+            if (isMuted) listenerYtPlayer.unMute();
+            else listenerYtPlayer.mute();
+            
+            const btn = document.getElementById('listener-deafen-btn');
+            const icon = document.getElementById('listener-vol-icon');
+            const slider = document.getElementById('listener-vol-slider');
 
-        if (player.muted) {
-            btn.classList.add('bg-orange-900/40', 'border-orange-500/50', 'text-orange-400');
-            btn.classList.remove('bg-slate-800', 'border-slate-600', 'text-white');
-            icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 011.414 0L10 14.586H8.414l-1.414-1.414-4.707 4.707A1 1 0 011 17v-4a1 1 0 011-1h1.586l4.707-4.707C8.923 6.663 10 7.109 10 8v5.586l1.414-1.414z" />`;
-            slider.style.opacity = '0.5';
-        } else {
-            btn.classList.remove('bg-orange-900/40', 'border-orange-500/50', 'text-orange-400');
-            btn.classList.add('bg-slate-800', 'border-slate-600', 'text-white');
-            icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />`;
-            slider.style.opacity = '1';
+            if (!isMuted) {
+                btn.classList.add('bg-orange-900/40', 'border-orange-500/50', 'text-orange-400');
+                btn.classList.remove('bg-slate-800', 'border-slate-600', 'text-white');
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 011.414 0L10 14.586H8.414l-1.414-1.414-4.707 4.707A1 1 0 011 17v-4a1 1 0 011-1h1.586l4.707-4.707C8.923 6.663 10 7.109 10 8v5.586l1.414-1.414z" />`;
+                slider.style.opacity = '0.5';
+            } else {
+                btn.classList.remove('bg-orange-900/40', 'border-orange-500/50', 'text-orange-400');
+                btn.classList.add('bg-slate-800', 'border-slate-600', 'text-white');
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />`;
+                slider.style.opacity = '1';
+            }
         }
     }
 
     function updateListenerVolume() {
-        const player = document.getElementById('audio-player');
         const val = document.getElementById('listener-vol-slider').value;
-        player.volume = val;
-        if(val > 0 && player.muted) toggleListenerDeafen();
-        
-        // Ensure YouTube volume is synced too
         if (listenerYtPlayer && typeof listenerYtPlayer.setVolume === 'function') {
             listenerYtPlayer.setVolume(val * 100);
+            if(val > 0 && listenerYtPlayer.isMuted()) toggleListenerDeafen();
         }
     }
 
+    function unlockListenerAudio() {
+        window.audioUnlocked = true;
+        setListenerStateLive();
+        
+        if (listenerYtPlayer && typeof listenerYtPlayer.unMute === 'function') {
+            listenerYtPlayer.unMute();
+            listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
+            if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                listenerYtPlayer.playVideo();
+            }
+        }
+        
+        if (window.lastTrackCmd) {
+            syncListenerYT(window.lastTrackCmd);
+        }
+    }
+
+    function setListenerStateWaiting() {
+        document.getElementById('listener-status-text').innerText = "Tap icon to start audio";
+        document.getElementById('listener-status-text').style.color = '#94a3b8'; 
+        document.getElementById('buffer-bar').classList.add('hidden');
+        document.getElementById('reactions-bar').classList.add('hidden');
+        
+        const iconContainer = document.getElementById('listener-status-icon');
+        iconContainer.classList.replace('bg-slate-900', 'bg-slate-800');
+        iconContainer.style.borderColor = '#334155';
+        
+        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 cursor-pointer hover:scale-110 transition animate-bounce" style="color: ${myStationColor}" viewBox="0 0 20 20" fill="currentColor" onclick="unlockListenerAudio()"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>`;
+    }
+
     function setListenerStateLive() {
-        document.getElementById('listener-status-text').innerText = "Live On Air";
+        document.getElementById('listener-status-text').innerText = "Firebase Sync Active";
         document.getElementById('listener-status-text').style.color = myStationColor;
         document.getElementById('buffer-bar').classList.add('hidden');
-        document.getElementById('listener-visualizer-container').classList.remove('hidden');
         document.getElementById('reactions-bar').classList.remove('hidden');
         document.getElementById('listener-chat-container').classList.remove('hidden');
         
@@ -1598,12 +1544,11 @@
         const hex = myStationColor.replace('#','');
         const rgba = `rgba(${parseInt(hex.substring(0,2), 16)},${parseInt(hex.substring(2,4), 16)},${parseInt(hex.substring(4,6), 16)},0.7)`;
         
-        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 pulse-ring rounded-full" style="color: ${myStationColor}; box-shadow: 0 0 0 0 ${rgba}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>`;
+        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 pulse-ring rounded-full" style="color: ${myStationColor}; box-shadow: 0 0 0 0 ${rgba}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C8.923 6.663 10 7.109 10 8v5.586l1.414-1.414z" /></svg>`;
     }
 
     function setListenerStateOff() {
         document.getElementById('buffer-bar').classList.add('hidden');
-        document.getElementById('listener-visualizer-container').classList.add('hidden');
         document.getElementById('reactions-bar').classList.add('hidden');
         document.getElementById('listener-chat-container').classList.add('hidden');
         document.getElementById('now-playing-container').classList.add('hidden');
@@ -1613,7 +1558,7 @@
     }
 
     // --- EMOJIS / REACTIONS / CONFETTI ---
-    function sendReaction(emoji) {
+    async function sendReaction(emoji) {
         if(emoji === '🎉') fireConfetti();
         else showFloatingEmoji(emoji);
         
@@ -1622,9 +1567,10 @@
             updateHypeUI();
         }
 
-        if (room && room.state === 'connected') {
-            const payload = JSON.stringify({ type: 'reaction', emoji: emoji });
-            room.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+        if (currentStationRef) {
+            const updateData = { latestReaction: { emoji: emoji, ts: Date.now() } };
+            if (emoji === '💖') updateData.hype = globalHypeCount;
+            fbUpdateDoc(currentStationRef, updateData).catch(e => console.error(e));
         }
     }
 
@@ -1638,8 +1584,7 @@
     }
     
     function triggerConfettiSync() {
-        fireConfetti();
-        broadcastToListeners({ type: 'confetti' });
+        sendReaction('🎉'); // Re-using reaction pipeline for host confetti
     }
 
     function fireConfetti() {
@@ -1648,95 +1593,34 @@
             let conf = document.createElement('div');
             conf.className = 'confetti-piece';
             
-            // Random shape (square or rectangle)
             const w = Math.random() * 8 + 4;
             const h = Math.random() > 0.5 ? w : w * 2;
             conf.style.width = `${w}px`;
             conf.style.height = `${h}px`;
             conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
             
-            // Start position (center top)
             conf.style.left = '50vw';
             conf.style.top = '-5vh';
             
-            // Random end position
-            const tx = (Math.random() - 0.5) * 100; // -50vw to 50vw offset
-            const ty = 110; // fall past bottom
-            const r = Math.random() * 1000 - 500; // rotation
+            const tx = (Math.random() - 0.5) * 100; 
+            const ty = 110; 
+            const r = Math.random() * 1000 - 500; 
             
             conf.style.transition = `transform ${Math.random() * 1.5 + 2}s cubic-bezier(.37,0,.63,1), opacity 3s`;
             
             document.body.appendChild(conf);
             
-            // Trigger animation next frame
             requestAnimationFrame(() => {
                 conf.style.transform = `translate(${tx}vw, ${ty}vh) rotate(${r}deg)`;
-                setTimeout(() => conf.style.opacity = '0', 1500); // fade out near end
+                setTimeout(() => conf.style.opacity = '0', 1500); 
             });
             
             setTimeout(() => conf.remove(), 4000);
         }
     }
 
-    // --- MIRRORED AUDIO VISUALIZER ---
-    window.currentVisualizerColor = null; 
-    function setupVisualizer(stream, canvasId, defaultColorHex, isMirrored) {
-        window.currentVisualizerColor = defaultColorHex;
-        const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // FIX 3: Force the audio pipeline to wake up if the browser tries to suspend it
-        if (ctxAudio.state === 'suspended') {
-            ctxAudio.resume();
-        }
-
-        const analyzer = ctxAudio.createAnalyser();
-        const source = ctxAudio.createMediaStreamSource(stream);
-        source.connect(analyzer);
-        
-        analyzer.fftSize = 256;
-        const bufferLength = analyzer.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        const canvas = document.getElementById(canvasId);
-        const ctx = canvas.getContext('2d');
-        
-        function draw() {
-            requestAnimationFrame(draw);
-            analyzer.getByteFrequencyData(dataArray);
-            
-            canvas.width = canvas.offsetWidth * 2;
-            canvas.height = canvas.offsetHeight * 2;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const activeColor = window.currentVisualizerColor || '#10b981';
-            
-            const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-            gradient.addColorStop(0, activeColor);
-            gradient.addColorStop(1, '#ffffff');
-
-            const barWidth = (canvas.width / bufferLength) * (isMirrored ? 1.5 : 2.5);
-            const center = canvas.width / 2;
-
-            for(let i = 0; i < bufferLength; i++) {
-                const barHeight = (dataArray[i] / 255) * canvas.height * 0.8; 
-                
-                ctx.fillStyle = gradient;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = activeColor;
-
-                if (isMirrored) {
-                    const xRight = center + (i * (barWidth + 2));
-                    ctx.fillRect(xRight, canvas.height - barHeight, barWidth, barHeight);
-                    const xLeft = center - (i * (barWidth + 2)) - barWidth;
-                    ctx.fillRect(xLeft, canvas.height - barHeight, barWidth, barHeight);
-                } else {
-                    const x = i * (barWidth + 2);
-                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                }
-            }
-        }
-        draw();
-    }
+    // App starts by initializing Firebase directly with your configuration
+    window.onload = initFirebaseAndApp;
 </script>
 </body>
 </html>
