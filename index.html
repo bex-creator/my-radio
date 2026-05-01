@@ -609,13 +609,13 @@
             window.signOutAuth = signOut;
 
             // Export to global for helper functions
-            fbDoc = doc;
-            fbSetDoc = setDoc;
-            fbUpdateDoc = updateDoc;
-            fbCollection = collection;
-            fbOnSnapshot = onSnapshot;
-            fbAddDoc = addDoc;
-            fbGetDocs = getDocs;
+            fbDoc = window.fbDoc = doc;
+            fbSetDoc = window.fbSetDoc = setDoc;
+            fbUpdateDoc = window.fbUpdateDoc = updateDoc;
+            fbCollection = window.fbCollection = collection;
+            fbOnSnapshot = window.fbOnSnapshot = onSnapshot;
+            fbAddDoc = window.fbAddDoc = addDoc;
+            fbGetDocs = window.fbGetDocs = getDocs;
             window.fbDeleteDoc = deleteDoc; 
             window.fbArrayUnion = arrayUnion;
             window.fbArrayRemove = arrayRemove;
