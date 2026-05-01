@@ -696,6 +696,13 @@
     }
     function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])); }
 
+    function updateHypeUI() {
+        const djHype = document.getElementById('dj-hype-count');
+        const listenerHype = document.getElementById('listener-hype-count');
+        if (djHype) djHype.innerText = globalHypeCount;
+        if (listenerHype) listenerHype.innerText = globalHypeCount;
+    }
+
     // --- LOCAL FILE PLAYLIST LOGIC ---
     function handleMusicUpload(e) {
         if (!e.target.files || e.target.files.length === 0) return;
