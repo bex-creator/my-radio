@@ -1471,7 +1471,7 @@
             if (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
                 try {
                     listenerYtPlayer = new YT.Player('yt-player-listener', {
-                        height: '10', width: '10',
+                        height: '300', width: '300',
                         playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
                         events: { 
                             'onReady': (e) => { 
@@ -1618,29 +1618,37 @@
             const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
             
             if (trackCmd.status === 'playing') {
+                const vol = document.getElementById('listener-vol-slider').value * 100;
                 if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
-                if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(document.getElementById('listener-vol-slider').value * 100);
+                if(typeof listenerYtPlayer.setVolume === 'function') listenerYtPlayer.setVolume(vol);
+
+                // Calculate expected time absolutely via system clocks
+                let expectedTime = 0;
+                if(trackCmd.startTs !== undefined) {
+                    expectedTime = (Date.now() - trackCmd.startTs) / 1000;
+                }
 
                 if (currentData.video_id !== trackCmd.videoId) {
-                     // Initial load (starts at 0 if no time was passed, but we use startTs to calculate offset immediately)
-                     listenerYtPlayer.loadVideoById(trackCmd.videoId, 0);
+                     // Load immediately at the correct time to prevent browser autoplay blocking from double-seeking
+                     listenerYtPlayer.loadVideoById({videoId: trackCmd.videoId, startSeconds: Math.max(0, expectedTime)});
                      
+                     // Force playback if browser stalls, and re-enforce volume
                      setTimeout(() => {
                          if(listenerYtPlayer && typeof listenerYtPlayer.getPlayerState === 'function') {
+                             listenerYtPlayer.unMute();
+                             listenerYtPlayer.setVolume(vol);
                              const state = listenerYtPlayer.getPlayerState();
-                             if(state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED) {
+                             if(state !== YT.PlayerState.PLAYING) {
                                  listenerYtPlayer.playVideo();
                              }
                          }
-                     }, 1500);
+                     }, 1000);
                 } else {
                      if (listenerYtPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
                          listenerYtPlayer.playVideo();
                      }
                      
-                     if(trackCmd.startTs !== undefined && typeof listenerYtPlayer.getCurrentTime === 'function') {
-                         // Calculate expected time based absolutely on system clocks! Background tabs don't affect this.
-                         const expectedTime = (Date.now() - trackCmd.startTs) / 1000;
+                     if(typeof listenerYtPlayer.getCurrentTime === 'function') {
                          const current = listenerYtPlayer.getCurrentTime() || 0;
                          const diff = current - expectedTime;
                          
