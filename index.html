@@ -991,6 +991,10 @@
         btn.classList.toggle('bg-emerald-900/50', isLooping);
         btn.classList.toggle('text-emerald-400', isLooping);
         btn.classList.toggle('border-emerald-500/50', isLooping);
+        
+        if (isBroadcasting && currentStationRef) {
+            fbUpdateDoc(currentStationRef, { isLooping: isLooping }).catch(e => console.error(e));
+        }
     }
 
     function shufflePlaylist() {
@@ -1337,6 +1341,7 @@
             activeListeners: [],
             playlist: [],
             currentTrackIndex: 0,
+            isLooping: false,
             updatedAt: Date.now(),
             currentTrack: null
         });
@@ -1506,25 +1511,53 @@
                             'onStateChange': (e) => {
                                 // OFFLINE DJ AUTO-ADVANCE LOGIC
                                 if (e.data === YT.PlayerState.ENDED) {
-                                    if (window.currentStationData && (Date.now() - window.currentStationData.updatedAt > 15000)) {
-                                        const pl = window.currentStationData.playlist || [];
-                                        const nextIdx = (window.currentStationData.currentTrackIndex || 0) + 1;
+                                    // If host hasn't pinged the server in 20 seconds, they are offline
+                                    if (window.currentStationData && (Date.now() - window.currentStationData.updatedAt > 20000)) {
                                         
-                                        if (nextIdx < pl.length) {
+                                        // Random delay (0.5s - 2.5s) so 100 listeners don't write to DB at the exact same millisecond
+                                        setTimeout(() => {
+                                            const data = window.currentStationData;
+                                            
+                                            // Check if another listener already advanced the track while we were waiting
+                                            if (Date.now() - data.updatedAt < 5000) return; 
+
+                                            const pl = data.playlist || [];
+                                            const currentIdx = data.currentTrackIndex || 0;
+                                            const loop = data.isLooping || false;
+                                            
+                                            let nextIdx = currentIdx + 1;
+                                            
+                                            // Skip local files since the DJ is offline and audio isn't shared
+                                            while (nextIdx < pl.length && pl[nextIdx].type !== 'youtube') {
+                                                nextIdx++;
+                                            }
+                                            
+                                            if (nextIdx >= pl.length) {
+                                                if (loop) {
+                                                    nextIdx = 0;
+                                                    while (nextIdx < pl.length && pl[nextIdx].type !== 'youtube') {
+                                                        nextIdx++;
+                                                    }
+                                                    if (nextIdx >= pl.length) return; // No youtube tracks at all
+                                                } else {
+                                                    return; // End of playlist
+                                                }
+                                            }
+                                            
                                             const nextTrack = pl[nextIdx];
-                                            if (nextTrack.type === 'youtube') {
+                                            if (nextTrack && nextTrack.type === 'youtube') {
                                                 fbUpdateDoc(currentStationRef, {
                                                     currentTrackIndex: nextIdx,
+                                                    updatedAt: Date.now(), // Act as the heartbeat so we don't trigger again immediately
                                                     currentTrack: {
                                                         status: 'playing',
                                                         title: nextTrack.name,
                                                         videoId: nextTrack.id,
-                                                        startTs: Date.now(),
-                                                        updatedAt: Date.now()
+                                                        startTs: Date.now()
                                                     }
                                                 }).catch(err => console.error(err));
                                             }
-                                        }
+                                        }, Math.random() * 2000 + 500);
                                     }
                                 }
                             }
