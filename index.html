@@ -495,6 +495,12 @@
             <div id="listener-visualizer-container" class="hidden w-full bg-slate-950/70 rounded-xl p-2 border border-slate-800 shadow-inner">
                 <canvas id="listener-visualizer" class="h-16"></canvas>
             </div>
+            
+            <!-- Listener YouTube Player (Visible so listeners can skip ads and browsers don't throttle) -->
+            <div id="yt-player-container-listener" class="hidden w-full mt-4 rounded-xl overflow-hidden border border-slate-800 bg-black h-[180px] shadow-lg relative group">
+                <span class="absolute top-2 left-2 bg-slate-900/80 text-[9px] text-slate-300 px-2 py-1 rounded font-bold uppercase tracking-widest z-10 pointer-events-none opacity-50 group-hover:opacity-100 transition-opacity">Live Sync</span>
+                <div id="yt-player-listener" class="w-full h-full"></div>
+            </div>
         </div>
 
         <!-- Chat Area (Listener) -->
@@ -529,11 +535,6 @@
                 </button>
             </div>
         </div>
-    </div>
-
-    <!-- Hidden YouTube Player for Listeners: Moved to the very end of body to prevent browser autoplay blocking -->
-    <div class="absolute -top-[1000px] -left-[1000px] w-[300px] h-[300px] opacity-[0.01] pointer-events-none z-[-1]">
-        <div id="yt-player-listener"></div>
     </div>
 
 <script>
@@ -1497,7 +1498,7 @@
             if (!listenerYtPlayer || typeof listenerYtPlayer.loadVideoById !== 'function') {
                 try {
                     listenerYtPlayer = new YT.Player('yt-player-listener', {
-                        height: '300', width: '300',
+                        height: '100%', width: '100%',
                         playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
                         events: { 
                             'onReady': (e) => { 
@@ -1612,9 +1613,16 @@
                 if (data.currentTrack.status !== 'local' && data.currentTrack.videoId) {
                     currentListenerTrack = data.currentTrack;
                     document.getElementById('listener-save-track-btn').classList.remove('hidden');
+                    
+                    if (window.audioUnlocked) {
+                        document.getElementById('yt-player-container-listener').classList.remove('hidden');
+                        document.getElementById('listener-status-icon').parentElement.classList.add('hidden');
+                    }
                 } else {
                     currentListenerTrack = null;
                     document.getElementById('listener-save-track-btn').classList.add('hidden');
+                    document.getElementById('yt-player-container-listener').classList.add('hidden');
+                    document.getElementById('listener-status-icon').parentElement.classList.remove('hidden');
                 }
 
                 if (data.currentTrack.status === 'local') {
@@ -1744,6 +1752,11 @@
     function unlockListenerAudio() {
         window.audioUnlocked = true;
         setListenerStateLive();
+        
+        if (currentListenerTrack && currentListenerTrack.videoId) {
+            document.getElementById('yt-player-container-listener').classList.remove('hidden');
+            document.getElementById('listener-status-icon').parentElement.classList.add('hidden');
+        }
         
         if (listenerYtPlayer && typeof listenerYtPlayer.unMute === 'function') {
             listenerYtPlayer.unMute();
