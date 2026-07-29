@@ -307,7 +307,7 @@
                         <div id="yt-player-dj" class="w-full h-full"></div>
                     </div>
 
-                    <audio id="dj-audio-player" controls class="w-full h-10 mt-auto z-10 outline-none rounded-lg" onplay="onDJPlay()" onpause="document.getElementById('vinyl-icon').classList.add('vinyl-paused')"></audio>
+                    <audio id="dj-audio-player" controls class="w-full h-10 mt-auto z-10 outline-none rounded-lg" onplay="onDJPlay()" onpause="document.getElementById('vinyl-icon').classList.add('vinyl-paused')" onended="playNextTrack()"></audio>
                 </div>
 
                 <!-- Live Chat -->
@@ -1045,7 +1045,7 @@
             const el = document.createElement('div');
             const isActive = i === currentTrackIndex;
             const isYT = item.type === 'youtube';
-            const icon = isYT ? '📺' : '🎵 (Local)';
+            const icon = isYT ? '📺' : '🎵 (Host Only)';
             
             el.className = `flex justify-between items-center group transition px-3 py-1.5 rounded-lg text-xs font-medium ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 border border-transparent'}`;
             
@@ -1574,7 +1574,7 @@
             
             if (data.currentTrack) {
                 document.getElementById('now-playing-container').classList.remove('hidden');
-                document.getElementById('now-playing-text').innerText = data.currentTrack.title + (data.currentTrack.status === 'local' ? ' (Host Local File)' : '');
+                document.getElementById('now-playing-text').innerText = data.currentTrack.title + (data.currentTrack.status === 'local' ? ' (DJ is playing a local file - Audio not shared)' : '');
                 
                 if (data.currentTrack.status !== 'local' && data.currentTrack.videoId) {
                     currentListenerTrack = data.currentTrack;
@@ -1621,8 +1621,6 @@
         }
         
         try {
-            const currentData = listenerYtPlayer.getVideoData ? listenerYtPlayer.getVideoData() : {};
-            
             if (trackCmd.status === 'playing') {
                 const vol = document.getElementById('listener-vol-slider').value * 100;
                 if(typeof listenerYtPlayer.unMute === 'function') listenerYtPlayer.unMute();
@@ -1633,16 +1631,27 @@
                     expectedTime = (Date.now() - trackCmd.startTs) / 1000;
                 }
 
-                if (currentData.video_id !== trackCmd.videoId) {
-                     // Start synchronously right from where it needs to be
+                // Prevent reload spamming while the video buffers by checking our own state tracker
+                if (window.currentListenerVideoId !== trackCmd.videoId) {
+                     window.currentListenerVideoId = trackCmd.videoId;
                      listenerYtPlayer.loadVideoById({videoId: trackCmd.videoId, startSeconds: Math.max(0, expectedTime)});
+                     
+                     // Force playback slightly after loading to bypass some browser suspensions
+                     setTimeout(() => { if(typeof listenerYtPlayer.playVideo === 'function') listenerYtPlayer.playVideo(); }, 500);
                 } else {
                      const state = listenerYtPlayer.getPlayerState();
                      
+                     // If DJ restarted the exact same song, replay it
+                     if (state === YT.PlayerState.ENDED && expectedTime < 5) {
+                         listenerYtPlayer.seekTo(Math.max(0, expectedTime));
+                         listenerYtPlayer.playVideo();
+                         return;
+                     }
+
                      // FIX: Do NOT restart the video if it naturally ended while waiting for the DJ to skip!
                      if (state === YT.PlayerState.ENDED) return;
 
-                     if (state !== YT.PlayerState.PLAYING) {
+                     if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) {
                          listenerYtPlayer.playVideo();
                      }
                      
